@@ -17,37 +17,23 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { useUser } from "@/context/user-context"; // Import useUser
-import { useRouter } from "next/navigation"; // Import useRouter
-import { useToast } from "@/hooks/use-toast"; // Import useToast
+import { useUser } from "@/context/user-context"; 
+import { useRouter } from "next/navigation"; 
+import { useToast } from "@/hooks/use-toast"; 
+import type { AdminUser } from "@/app/admin/users/page"; // Assuming AdminUser type
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(1, { message: "Password is required." }), // Simplified for demo
+  password: z.string().min(1, { message: "Password is required." }),
 });
 
-// Mock user data for login simulation
-const MOCK_USER_CREDENTIALS = {
-  email: "demo@example.com",
-  password: "password123",
-  userData: {
-    id: 'user-123',
-    name: 'Demo User',
-    email: 'demo@example.com',
-    isLoggedIn: true,
-    subscription: {
-      planName: 'Premium Plan',
-      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    },
-  }
-};
-
+const LOCAL_STORAGE_KEY_USERS = "iot-guardian-users";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  const { loginUser } = useUser(); // Use the loginUser function from context
-  const router = useRouter(); // For redirection
-  const { toast } = useToast(); // For notifications
+  const { loginUser } = useUser();
+  const router = useRouter();
+  const { toast } = useToast();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -62,15 +48,70 @@ export function LoginForm() {
     // Simulate API call & authentication
     await new Promise(resolve => setTimeout(resolve, 1000));
 
-    if (values.email === MOCK_USER_CREDENTIALS.email && values.password === MOCK_USER_CREDENTIALS.password) {
-      loginUser(MOCK_USER_CREDENTIALS.userData);
-      toast({ title: "Login Successful", description: "Welcome back!" });
-      router.push('/'); // Redirect to dashboard
-    } else {
-      toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
+    try {
+      const usersString = localStorage.getItem(LOCAL_STORAGE_KEY_USERS);
+      const users: AdminUser[] = usersString ? JSON.parse(usersString) : [];
+      
+      const foundUser = users.find(user => user.email === values.email);
+
+      if (!foundUser) {
+        toast({ title: "Login Failed", description: "User not found.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      // INSECURE: Password check for demo. In a real app, backend handles this with hashing.
+      if (foundUser.passwordHash !== values.password) {
+        toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+
+      if (foundUser.status === 'pending') {
+        toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default" });
+        setIsLoading(false);
+        return;
+      }
+
+      if (foundUser.status === 'rejected') {
+        toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive" });
+        setIsLoading(false);
+        return;
+      }
+      
+      if (foundUser.status === 'active') {
+        // Adapt AdminUser to User for context.
+        // The User context might expect a different structure.
+        // For now, let's pass the relevant fields.
+        loginUser({
+          id: foundUser.id,
+          name: `${foundUser.firstName} ${foundUser.lastName}`, // Combine first and last name
+          email: foundUser.email,
+          isLoggedIn: true,
+          subscription: {
+            planName: foundUser.subscription,
+            // Expiry date would need to be set by admin upon approval/plan assignment
+            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Placeholder
+          },
+          // Add other fields from AdminUser if needed by User context
+          firstName: foundUser.firstName,
+          lastName: foundUser.lastName,
+          companyName: foundUser.companyName,
+          whatsappNumber: foundUser.whatsappNumber,
+
+        });
+        toast({ title: "Login Successful", description: "Welcome back!" });
+        router.push('/'); // Redirect to dashboard
+      } else {
+        toast({ title: "Login Failed", description: "Account status unknown.", variant: "destructive" });
+        setIsLoading(false);
+      }
+
+    } catch (error) {
+      console.error("Login error:", error);
+      toast({ title: "Login Failed", description: "An unexpected error occurred.", variant: "destructive" });
       setIsLoading(false);
     }
-    // setIsLoading(false) will be handled by redirect or explicit set on error
   }
 
   return (
@@ -89,7 +130,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="demo@example.com" {...field} />
+                    <Input type="email" placeholder="you@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -102,7 +143,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="password123" {...field} />
+                    <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

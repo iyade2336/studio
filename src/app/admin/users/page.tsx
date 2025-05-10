@@ -1,9 +1,9 @@
 
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search, Edit3, Trash2 } from "lucide-react";
+import { PlusCircle, Search, Edit3, Trash2, CheckCircle, XCircle, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -42,41 +42,66 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
-interface AdminUser {
+// Make AdminUser exportable if not already in a shared types file
+export interface AdminUser {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
-  subscription: "Premium" | "Basic" | "Free Trial" | string;
+  whatsappNumber: string;
+  companyName: string;
+  subscription: "Premium" | "Basic" | "Free Trial" | "None" | string;
   devices: number;
   joinedDate: string;
   avatarUrl?: string;
+  status: 'pending' | 'active' | 'rejected';
+  passwordHash?: string; // For local simulation of login. NEVER do this in production.
 }
 
 const initialMockUsers: AdminUser[] = [
-  { id: "usr_001", name: "Alice Wonderland", email: "alice@example.com", subscription: "Premium", devices: 3, joinedDate: "2023-01-15", avatarUrl: "https://picsum.photos/seed/alice/40/40" },
-  { id: "usr_002", name: "Bob The Builder", email: "bob@example.com", subscription: "Basic", devices: 1, joinedDate: "2023-03-20", avatarUrl: "https://picsum.photos/seed/bob/40/40" },
-  { id: "usr_003", name: "Charlie Brown", email: "charlie@example.com", subscription: "Premium", devices: 5, joinedDate: "2022-11-01", avatarUrl: "https://picsum.photos/seed/charlie/40/40" },
-  { id: "usr_004", name: "Diana Prince", email: "diana@example.com", subscription: "Free Trial", devices: 0, joinedDate: "2023-10-20", avatarUrl: "https://picsum.photos/seed/diana/40/40" },
+  { id: "usr_001", firstName: "Alice", lastName: "Wonderland", email: "alice@example.com", whatsappNumber: "+11234567890", companyName: "Wonderland Inc.", subscription: "Premium", devices: 3, joinedDate: "2023-01-15", avatarUrl: "https://picsum.photos/seed/alice/40/40", status: "active", passwordHash: "password123" },
+  { id: "usr_002", firstName: "Bob", lastName: "Builder", email: "bob@example.com", whatsappNumber: "+12345678901", companyName: "Builders Co.", subscription: "Basic", devices: 1, joinedDate: "2023-03-20", avatarUrl: "https://picsum.photos/seed/bob/40/40", status: "active", passwordHash: "password123" },
+  { id: "usr_003", firstName: "Charlie", lastName: "Brown", email: "charlie@example.com", whatsappNumber: "+13456789012", companyName: "Peanuts LLC", subscription: "pending", devices: 0, joinedDate: "2022-11-01", avatarUrl: "https://picsum.photos/seed/charlie/40/40", status: "pending", passwordHash: "password123" },
 ];
 
-const defaultNewUser: Omit<AdminUser, 'id'> = {
-  name: "",
+const defaultNewAdminCreatedUser: Omit<AdminUser, 'id' | 'joinedDate' | 'avatarUrl'> = {
+  firstName: "",
+  lastName: "",
   email: "",
+  whatsappNumber: "",
+  companyName: "",
   subscription: "Basic",
   devices: 0,
-  joinedDate: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD format
-  avatarUrl: "",
+  status: "active", // Admin-created users are active by default
 };
 
-const subscriptionOptions: AdminUser["subscription"][] = ["Basic", "Premium", "Free Trial"];
+const subscriptionOptions: AdminUser["subscription"][] = ["None", "Basic", "Premium", "Free Trial"];
+const statusOptions: AdminUser["status"][] = ["pending", "active", "rejected"];
+
+const LOCAL_STORAGE_KEY = "iot-guardian-users";
 
 export default function AdminUsersPage() {
-  const [users, setUsers] = useState<AdminUser[]>(initialMockUsers);
+  const [users, setUsers] = useState<AdminUser[]>([]);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-  const [currentUserData, setCurrentUserData] = useState<Partial<AdminUser>>(defaultNewUser);
+  const [currentUserData, setCurrentUserData] = useState<Partial<AdminUser>>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    const storedUsers = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (storedUsers) {
+      setUsers(JSON.parse(storedUsers));
+    } else {
+      // If no users in localStorage, initialize with mock data
+      setUsers(initialMockUsers);
+      localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialMockUsers));
+    }
+  }, []);
+
+  const saveUsersToLocalStorage = (updatedUsers: AdminUser[]) => {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updatedUsers));
+  };
 
   const handleOpenUserModal = (userToEdit?: AdminUser) => {
     if (userToEdit) {
@@ -84,8 +109,9 @@ export default function AdminUsersPage() {
       setEditingUserId(userToEdit.id);
     } else {
       setCurrentUserData({
-        ...defaultNewUser,
-         avatarUrl: `https://picsum.photos/seed/${Date.now()}/40/40`
+        ...defaultNewAdminCreatedUser,
+        joinedDate: new Date().toLocaleDateString('en-CA'),
+        avatarUrl: `https://picsum.photos/seed/${Date.now()}/40/40`,
       });
       setEditingUserId(null);
     }
@@ -93,44 +119,65 @@ export default function AdminUsersPage() {
   };
 
   const handleSaveUser = () => {
-    if (!currentUserData.name || !currentUserData.email) {
-      toast({ title: "Error", description: "Name and Email are required.", variant: "destructive" });
+    if (!currentUserData.firstName || !currentUserData.lastName || !currentUserData.email) {
+      toast({ title: "Error", description: "First Name, Last Name, and Email are required.", variant: "destructive" });
       return;
     }
-
+    
+    let updatedUsers;
     if (editingUserId) { // Editing existing user
-      setUsers(users.map(user => user.id === editingUserId ? { ...user, ...currentUserData } as AdminUser : user));
-      toast({ title: "User Updated", description: `User ${currentUserData.name} has been updated.` });
-    } else { // Adding new user
+      updatedUsers = users.map(user => user.id === editingUserId ? { ...user, ...currentUserData } as AdminUser : user);
+      toast({ title: "User Updated", description: `User ${currentUserData.firstName} ${currentUserData.lastName} has been updated.` });
+    } else { // Adding new user (by admin)
       const newUser: AdminUser = {
         id: `usr_${Date.now()}`,
-        ...defaultNewUser, // ensures all fields are present
+        ...defaultNewAdminCreatedUser, // ensures all fields are present
         ...currentUserData,
+        joinedDate: currentUserData.joinedDate || new Date().toLocaleDateString('en-CA'),
         avatarUrl: currentUserData.avatarUrl || `https://picsum.photos/seed/${Date.now()}/40/40`,
       } as AdminUser;
-      setUsers(prevUsers => [newUser, ...prevUsers]);
-      toast({ title: "User Added", description: `User ${newUser.name} has been added.` });
+      updatedUsers = [newUser, ...users];
+      toast({ title: "User Added", description: `User ${newUser.firstName} ${newUser.lastName} has been added.` });
     }
+    setUsers(updatedUsers);
+    saveUsersToLocalStorage(updatedUsers);
     setIsUserModalOpen(false);
-    setCurrentUserData(defaultNewUser);
+    setCurrentUserData({});
     setEditingUserId(null);
   };
   
   const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
+    const updatedUsers = users.filter(user => user.id !== userId);
+    setUsers(updatedUsers);
+    saveUsersToLocalStorage(updatedUsers);
     toast({ title: "User Deleted", description: "The user has been removed.", variant: "destructive" });
   }
 
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.companyName.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const getStatusBadge = (status: AdminUser['status']) => {
+    switch (status) {
+      case 'active':
+        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="mr-1 h-3 w-3"/>Active</Badge>;
+      case 'pending':
+        return <Badge variant="secondary" className="bg-yellow-500 hover:bg-yellow-600"><Clock className="mr-1 h-3 w-3"/>Pending</Badge>;
+      case 'rejected':
+        return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3"/>Rejected</Badge>;
+      default:
+        return <Badge variant="outline">{status}</Badge>;
+    }
+  };
+
 
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
         title="Manage Users"
-        description="View, edit, and manage all registered users."
+        description="View, edit, and manage all registered users, including pending approvals."
       >
         <Button onClick={() => handleOpenUserModal()}>
           <PlusCircle className="mr-2 h-4 w-4" /> Add New User
@@ -142,7 +189,7 @@ export default function AdminUsersPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search users by name, email..."
+            placeholder="Search users by name, email, company..."
             className="w-full rounded-lg bg-background pl-8 md:w-[300px] lg:w-[400px]"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -156,9 +203,11 @@ export default function AdminUsersPage() {
             <TableRow>
               <TableHead>User</TableHead>
               <TableHead>Email</TableHead>
+              <TableHead>Company</TableHead>
+              <TableHead>Status</TableHead>
               <TableHead>Subscription</TableHead>
               <TableHead className="text-center">Devices</TableHead>
-              <TableHead>Joined Date</TableHead>
+              <TableHead>Joined</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -168,13 +217,15 @@ export default function AdminUsersPage() {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatarUrl} alt={user.name} data-ai-hint="person avatar" />
-                      <AvatarFallback>{user.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                      <AvatarImage src={user.avatarUrl} alt={`${user.firstName} ${user.lastName}`} data-ai-hint="person avatar" />
+                      <AvatarFallback>{user.firstName?.substring(0, 1)}{user.lastName?.substring(0,1)}</AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{user.name}</span>
+                    <span className="font-medium">{user.firstName} {user.lastName}</span>
                   </div>
                 </TableCell>
                 <TableCell>{user.email}</TableCell>
+                <TableCell>{user.companyName}</TableCell>
+                <TableCell>{getStatusBadge(user.status)}</TableCell>
                 <TableCell>
                   <Badge variant={user.subscription === "Premium" ? "default" : "secondary"}>
                     {user.subscription}
@@ -195,6 +246,16 @@ export default function AdminUsersPage() {
                       <DropdownMenuItem onClick={() => handleOpenUserModal(user)}>
                         <Edit3 className="mr-2 h-4 w-4" /> Edit User
                       </DropdownMenuItem>
+                      {user.status === 'pending' && (
+                        <>
+                          <DropdownMenuItem onClick={() => handleSaveUser({ ...user, status: 'active', subscription: user.subscription === 'None' ? 'Basic' : user.subscription })}>
+                            <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Approve
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleSaveUser({ ...user, status: 'rejected' })}>
+                            <XCircle className="mr-2 h-4 w-4 text-red-500" /> Reject
+                          </DropdownMenuItem>
+                        </>
+                      )}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={() => handleDeleteUser(user.id)} className="text-destructive hover:!bg-destructive/10 hover:!text-destructive">
                         <Trash2 className="mr-2 h-4 w-4" /> Delete User
@@ -206,7 +267,7 @@ export default function AdminUsersPage() {
             ))}
             {filteredUsers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   No users found.
                 </TableCell>
               </TableRow>
@@ -216,58 +277,59 @@ export default function AdminUsersPage() {
       </div>
 
       <Dialog open={isUserModalOpen} onOpenChange={setIsUserModalOpen}>
-        <DialogContent className="sm:max-w-[480px]">
+        <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
             <DialogTitle>{editingUserId ? "Edit User" : "Add New User"}</DialogTitle>
             <DialogDescription>
               {editingUserId ? "Update the user's details." : "Fill in the details for the new user."}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 py-4">
+          <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">Name</Label>
-              <Input
-                id="name"
-                value={currentUserData.name || ""}
-                onChange={(e) => setCurrentUserData({ ...currentUserData, name: e.target.value })}
-                className="col-span-3"
-              />
+              <Label htmlFor="firstName" className="text-right">First Name</Label>
+              <Input id="firstName" value={currentUserData.firstName || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, firstName: e.target.value })} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="lastName" className="text-right">Last Name</Label>
+              <Input id="lastName" value={currentUserData.lastName || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, lastName: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={currentUserData.email || ""}
-                onChange={(e) => setCurrentUserData({ ...currentUserData, email: e.target.value })}
-                className="col-span-3"
-              />
+              <Input id="email" type="email" value={currentUserData.email || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, email: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="subscription" className="text-right">Subscription</Label>
-              <Select
-                value={currentUserData.subscription || "Basic"}
-                onValueChange={(value) => setCurrentUserData({ ...currentUserData, subscription: value })}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Select subscription" />
-                </SelectTrigger>
+              <Label htmlFor="whatsappNumber" className="text-right">WhatsApp</Label>
+              <Input id="whatsappNumber" value={currentUserData.whatsappNumber || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, whatsappNumber: e.target.value })} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="companyName" className="text-right">Company</Label>
+              <Input id="companyName" value={currentUserData.companyName || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, companyName: e.target.value })} className="col-span-3" />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="status" className="text-right">Status</Label>
+              <Select value={currentUserData.status || "pending"} onValueChange={(value) => setCurrentUserData({ ...currentUserData, status: value as AdminUser['status'] })}>
+                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
-                  {subscriptionOptions.map(option => (
-                    <SelectItem key={option} value={option}>{option}</SelectItem>
-                  ))}
+                  {statusOptions.map(option => <SelectItem key={option} value={option}>{option.charAt(0).toUpperCase() + option.slice(1)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="subscription" className="text-right">Subscription</Label>
+              <Select value={currentUserData.subscription || "None"} onValueChange={(value) => setCurrentUserData({ ...currentUserData, subscription: value })}>
+                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select subscription" /></SelectTrigger>
+                <SelectContent>
+                  {subscriptionOptions.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="devices" className="text-right">Devices</Label>
+              <Input id="devices" type="number" value={currentUserData.devices || 0} onChange={(e) => setCurrentUserData({ ...currentUserData, devices: parseInt(e.target.value) || 0 })} className="col-span-3" />
+            </div>
              <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="avatarUrl" className="text-right">Avatar URL</Label>
-              <Input
-                id="avatarUrl"
-                value={currentUserData.avatarUrl || ""}
-                onChange={(e) => setCurrentUserData({ ...currentUserData, avatarUrl: e.target.value })}
-                className="col-span-3"
-                placeholder="Optional image URL"
-              />
+              <Input id="avatarUrl" value={currentUserData.avatarUrl || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, avatarUrl: e.target.value })} className="col-span-3" placeholder="Optional image URL" />
             </div>
           </div>
           <DialogFooter>

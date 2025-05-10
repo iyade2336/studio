@@ -10,10 +10,15 @@ interface Subscription {
   expiryDate: string; // ISO string "YYYY-MM-DDTHH:mm:ss.sssZ"
 }
 
-interface User {
+// Updated User interface
+export interface User {
   id: string;
-  name: string;
+  name: string; // Combined Full Name (firstName + lastName)
+  firstName: string;
+  lastName: string;
   email: string;
+  whatsappNumber: string;
+  companyName: string;
   isLoggedIn: boolean;
   subscription: Subscription;
 }
@@ -41,22 +46,30 @@ interface UserContextType {
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// Mock initial user data
-const MOCK_USER_LOGGED_IN: User = {
+// Mock initial user data - will be overridden by login or localStorage
+const MOCK_USER_LOGGED_IN_TEMPLATE: User = {
   id: 'user-123',
   name: 'Demo User',
+  firstName: 'Demo',
+  lastName: 'User',
   email: 'demo@example.com',
+  whatsappNumber: '+1234567890',
+  companyName: 'Demo Corp',
   isLoggedIn: true,
   subscription: {
     planName: 'Premium Plan',
-    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Expires in 30 days
+    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), 
   },
 };
 
 const MOCK_USER_LOGGED_OUT: User = {
   id: '',
   name: 'Guest',
+  firstName: '',
+  lastName: '',
   email: '',
+  whatsappNumber: '',
+  companyName: '',
   isLoggedIn: false,
   subscription: {
     planName: 'None',
@@ -64,16 +77,17 @@ const MOCK_USER_LOGGED_OUT: User = {
   }
 }
 
+const LOCAL_STORAGE_KEY_CURRENT_USER = 'iot-guardian-currentUser';
+const LOCAL_STORAGE_KEY_NOTIFICATIONS = 'iot-guardian-userNotifications';
+
+
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(MOCK_USER_LOGGED_OUT);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const router = useRouter();
 
   useEffect(() => {
-    // Simulate checking auth status or loading from localStorage
-    // For demo, we'll set the mock user as logged in initially.
-    // In a real app, you'd check a token or session.
-    const storedUser = localStorage.getItem('currentUser');
+    const storedUser = localStorage.getItem(LOCAL_STORAGE_KEY_CURRENT_USER);
     if (storedUser) {
       try {
         const parsedUser = JSON.parse(storedUser) as User;
@@ -83,16 +97,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
           setCurrentUser(MOCK_USER_LOGGED_OUT);
         }
       } catch (e) {
-        setCurrentUser(MOCK_USER_LOGGED_OUT); // Fallback to logged out if parsing fails
+        setCurrentUser(MOCK_USER_LOGGED_OUT); 
       }
     } else {
-      // For demo purposes, log in the mock user by default.
-      // In a real app, this would likely be null until actual login.
-      loginUser(MOCK_USER_LOGGED_IN);
+       // By default, user is logged out if nothing in localStorage
+       setCurrentUser(MOCK_USER_LOGGED_OUT);
     }
 
-    // Load notifications from localStorage or initialize
-    const storedNotifications = localStorage.getItem('userNotifications');
+    const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
     if (storedNotifications) {
       try {
         const parsedNotifications = (JSON.parse(storedNotifications) as AppNotification[]).map(n => ({...n, timestamp: new Date(n.timestamp)}));
@@ -101,7 +113,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         // ignore
       }
     } else {
-        // Add some initial mock notifications
         setNotifications([
             { id: '1', message: 'Welcome to IoT Guardian!', type: 'system', read: false, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
             { id: '2', message: 'Device "Living Room Sensor" reported high temperature.', type: 'arduino', read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60) },
@@ -110,24 +121,30 @@ export function UserProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (currentUser) {
-      localStorage.setItem('currentUser', JSON.stringify(currentUser));
+    if (currentUser && currentUser.isLoggedIn) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem(LOCAL_STORAGE_KEY_CURRENT_USER);
     }
   }, [currentUser]);
 
   useEffect(() => {
-    localStorage.setItem('userNotifications', JSON.stringify(notifications));
+    localStorage.setItem(LOCAL_STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
 
   const loginUser = useCallback((userData: User) => {
-    setCurrentUser({...userData, isLoggedIn: true});
+    const userToSave: User = {
+      ...userData,
+      isLoggedIn: true,
+      name: `${userData.firstName} ${userData.lastName}`, // Ensure 'name' is combined
+    };
+    setCurrentUser(userToSave);
   }, []);
 
   const logoutUser = useCallback(() => {
     setCurrentUser(MOCK_USER_LOGGED_OUT);
-    localStorage.removeItem('currentUser');
-    // Optionally redirect to login page
+    // localStorage.removeItem(LOCAL_STORAGE_KEY_CURRENT_USER); // Handled by useEffect
     router.push('/auth/login');
   }, [router]);
 
@@ -139,7 +156,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       read: false,
       timestamp: new Date(),
     };
-    setNotifications(prev => [newNotification, ...prev].slice(0, 20)); // Keep last 20 notifications
+    setNotifications(prev => [newNotification, ...prev].slice(0, 20)); 
   }, []);
 
   const markNotificationAsRead = useCallback((notificationId: string) => {

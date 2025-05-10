@@ -1,4 +1,5 @@
 
+"use client"; // Add this to make it a Client Component
 
 import { RealtimeDataGrid } from "@/components/dashboard/realtime-data-grid";
 import { PageHeader } from "@/components/shared/page-header";
@@ -6,29 +7,29 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { AlertTriangle, Info, Wrench, CreditCard, MonitorSmartphone } from "lucide-react"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useUser } from "@/context/user-context"; // Import useUser hook
 
 export default function DashboardPage() {
-  // Mock data, in a real app this would come from user state/API
-  const currentUser = {
-    name: "Demo User",
-    subscription: "Premium Plan",
-    alerts: 2, 
-  };
+  const { currentUser } = useUser(); // Get currentUser from context
+
+  const userName = currentUser?.isLoggedIn ? currentUser.name : "Guest";
+  const subscriptionPlan = currentUser?.isLoggedIn ? currentUser.subscription.planName : "No Plan";
+  const alertsCount = currentUser?.isLoggedIn ? (currentUser as any).alerts || 0 : 0; // Assuming alerts might be on currentUser
 
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
-        title={`Welcome, ${currentUser.name}!`}
-        description={`You are currently on the ${currentUser.subscription}.`}
+        title={`Welcome, ${userName}!`}
+        description={currentUser?.isLoggedIn ? `You are currently on the ${subscriptionPlan}.` : "Please log in or register to manage your devices."}
       />
 
-      {currentUser.alerts > 0 && (
+      {currentUser?.isLoggedIn && alertsCount > 0 && (
         <Card className="bg-yellow-50 border-yellow-400 dark:bg-yellow-900/30 dark:border-yellow-600">
           <CardHeader className="pb-2">
             <div className="flex items-center">
               <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mr-3" />
               <CardTitle className="text-yellow-700 dark:text-yellow-300">
-                {currentUser.alerts} Active Alert{currentUser.alerts > 1 ? 's' : ''}
+                {alertsCount} Active Alert{alertsCount > 1 ? 's' : ''}
               </CardTitle>
             </div>
           </CardHeader>
@@ -38,7 +39,8 @@ export default function DashboardPage() {
             </p>
             <div className="mt-3">
               <Button variant="outline" size="sm" asChild>
-                <Link href="/alerts">
+                {/* TODO: Create an /alerts page or link to relevant section */}
+                <Link href="/#alerts-section"> 
                   <span className="flex items-center">View Alerts</span>
                 </Link>
               </Button>
