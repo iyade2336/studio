@@ -1,3 +1,4 @@
+
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
@@ -16,16 +17,37 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
+import { useUser } from "@/context/user-context"; // Import useUser
+import { useRouter } from "next/navigation"; // Import useRouter
+import { useToast } from "@/hooks/use-toast"; // Import useToast
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
-  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
+  password: z.string().min(1, { message: "Password is required." }), // Simplified for demo
 });
+
+// Mock user data for login simulation
+const MOCK_USER_CREDENTIALS = {
+  email: "demo@example.com",
+  password: "password123",
+  userData: {
+    id: 'user-123',
+    name: 'Demo User',
+    email: 'demo@example.com',
+    isLoggedIn: true,
+    subscription: {
+      planName: 'Premium Plan',
+      expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  }
+};
+
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
-  // In a real app, you'd handle form submission, e.g., call an API.
-  // const { toast } = useToast();
+  const { loginUser } = useUser(); // Use the loginUser function from context
+  const router = useRouter(); // For redirection
+  const { toast } = useToast(); // For notifications
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -35,15 +57,20 @@ export function LoginForm() {
     },
   });
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    console.log("Login values:", values);
-    // Simulate API call
-    setTimeout(() => {
+    // Simulate API call & authentication
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    if (values.email === MOCK_USER_CREDENTIALS.email && values.password === MOCK_USER_CREDENTIALS.password) {
+      loginUser(MOCK_USER_CREDENTIALS.userData);
+      toast({ title: "Login Successful", description: "Welcome back!" });
+      router.push('/'); // Redirect to dashboard
+    } else {
+      toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
       setIsLoading(false);
-      // toast({ title: "Login Successful", description: "Redirecting..." });
-      // router.push('/'); // Example redirect
-    }, 1500);
+    }
+    // setIsLoading(false) will be handled by redirect or explicit set on error
   }
 
   return (
@@ -62,7 +89,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" {...field} />
+                    <Input type="email" placeholder="demo@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -75,7 +102,7 @@ export function LoginForm() {
                 <FormItem>
                   <FormLabel>Password</FormLabel>
                   <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
+                    <Input type="password" placeholder="password123" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

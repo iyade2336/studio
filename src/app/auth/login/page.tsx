@@ -1,3 +1,5 @@
+
+"use client"; // Ensure this is a client component
 import { LoginForm } from "@/components/auth/login-form";
 
 export default function LoginPage() {
