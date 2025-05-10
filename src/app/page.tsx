@@ -1,4 +1,5 @@
 
+
 import { RealtimeDataGrid } from "@/components/dashboard/realtime-data-grid";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
@@ -37,7 +38,9 @@ export default function DashboardPage() {
             </p>
             <div className="mt-3">
               <Button variant="outline" size="sm" asChild>
-                <Link href="/alerts">View Alerts</Link>
+                <Link href="/alerts">
+                  <span className="flex items-center">View Alerts</span>
+                </Link>
               </Button>
             </div>
           </CardContent>
@@ -64,20 +67,26 @@ export default function DashboardPage() {
           <CardContent className="space-y-3">
             <Button variant="outline" className="w-full justify-start" asChild>
               <Link href="/troubleshoot">
-                <MonitorSmartphone className="mr-2 h-4 w-4" />
-                AI Troubleshooter
+                <span className="flex items-center w-full">
+                  <MonitorSmartphone className="mr-2 h-4 w-4" />
+                  AI Troubleshooter
+                </span>
               </Link>
             </Button>
             <Button variant="outline" className="w-full justify-start" asChild>
               <Link href="/issues">
-                 <Wrench className="mr-2 h-4 w-4" />
-                View Common Issues
+                 <span className="flex items-center w-full">
+                   <Wrench className="mr-2 h-4 w-4" />
+                   View Common Issues
+                 </span>
               </Link>
             </Button>
              <Button variant="secondary" className="w-full justify-start" asChild>
               <Link href="/subscriptions">
-                 <CreditCard className="mr-2 h-4 w-4" />
-                Manage Subscription
+                 <span className="flex items-center w-full">
+                   <CreditCard className="mr-2 h-4 w-4" />
+                   Manage Subscription
+                 </span>
               </Link>
             </Button>
           </CardContent>
@@ -94,7 +103,9 @@ export default function DashboardPage() {
             </p>
             <Button className="w-full" asChild>
               <Link href="/troubleshoot">
-                Ask AI Assistant
+                 <span className="flex items-center justify-center w-full">
+                    Ask AI Assistant
+                 </span>
               </Link>
             </Button>
           </CardContent>
