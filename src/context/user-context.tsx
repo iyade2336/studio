@@ -21,6 +21,7 @@ export interface User {
   companyName: string;
   isLoggedIn: boolean;
   subscription: Subscription;
+  expiryDate?: string; // Added to ensure it's passed correctly during login
 }
 
 export interface AppNotification {
@@ -47,21 +48,6 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 // Mock initial user data - will be overridden by login or localStorage
-const MOCK_USER_LOGGED_IN_TEMPLATE: User = {
-  id: 'user-123',
-  name: 'Demo User',
-  firstName: 'Demo',
-  lastName: 'User',
-  email: 'demo@example.com',
-  whatsappNumber: '+1234567890',
-  companyName: 'Demo Corp',
-  isLoggedIn: true,
-  subscription: {
-    planName: 'Premium Plan',
-    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), 
-  },
-};
-
 const MOCK_USER_LOGGED_OUT: User = {
   id: '',
   name: 'Guest',
@@ -100,7 +86,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setCurrentUser(MOCK_USER_LOGGED_OUT); 
       }
     } else {
-       // By default, user is logged out if nothing in localStorage
        setCurrentUser(MOCK_USER_LOGGED_OUT);
     }
 
@@ -137,14 +122,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const userToSave: User = {
       ...userData,
       isLoggedIn: true,
-      name: `${userData.firstName} ${userData.lastName}`, // Ensure 'name' is combined
+      name: `${userData.firstName} ${userData.lastName}`,
+      subscription: { // Ensure subscription object is correctly formed
+        planName: userData.subscription?.planName || "None",
+        expiryDate: userData.subscription?.expiryDate || new Date(0).toISOString(),
+      }
     };
     setCurrentUser(userToSave);
   }, []);
 
   const logoutUser = useCallback(() => {
     setCurrentUser(MOCK_USER_LOGGED_OUT);
-    // localStorage.removeItem(LOCAL_STORAGE_KEY_CURRENT_USER); // Handled by useEffect
     router.push('/auth/login');
   }, [router]);
 
@@ -176,20 +164,36 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
   const getSubscriptionDaysRemaining = useCallback((): string => {
-    if (!currentUser || !currentUser.isLoggedIn || !currentUser.subscription.expiryDate) {
+    if (!currentUser || !currentUser.isLoggedIn || currentUser.subscription.planName === "None") {
       return "N/A";
     }
-    const expiry = new Date(currentUser.subscription.expiryDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (expiry < today) {
-      return "Expired";
+    if (!currentUser.subscription.expiryDate) {
+        return "No expiry date set.";
     }
 
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return `${diffDays} day(s) remaining`;
+    const expiry = new Date(currentUser.subscription.expiryDate);
+    const now = new Date();
+
+    if (expiry < now) {
+      // If plan is not "None" but expired, it's expired.
+      if(currentUser.subscription.planName !== "None") {
+        return "Expired";
+      }
+      return "N/A"; // Should not happen if plan is "None"
+    }
+
+    const diffTime = expiry.getTime() - now.getTime();
+    
+    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
+
+    let remainingString = "";
+    if (days > 0) remainingString += `${days}d `;
+    if (days > 0 || hours > 0 ) remainingString += `${hours}h `;
+    remainingString += `${minutes}m remaining`;
+    
+    return remainingString.trim();
   }, [currentUser]);
 
   return (
