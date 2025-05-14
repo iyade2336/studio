@@ -41,8 +41,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { format } from 'date-fns';
 
-// Make AdminUser exportable if not already in a shared types file
+
 export interface AdminUser {
   id: string;
   firstName: string;
@@ -55,13 +56,14 @@ export interface AdminUser {
   joinedDate: string;
   avatarUrl?: string;
   status: 'pending' | 'active' | 'rejected';
-  passwordHash?: string; // For local simulation of login. NEVER do this in production.
+  passwordHash?: string; 
+  expiryDate?: string; // ISO string for subscription expiry
 }
 
 const initialMockUsers: AdminUser[] = [
-  { id: "usr_001", firstName: "Alice", lastName: "Wonderland", email: "alice@example.com", whatsappNumber: "+11234567890", companyName: "Wonderland Inc.", subscription: "Premium", devices: 3, joinedDate: "2023-01-15", avatarUrl: "https://picsum.photos/seed/alice/40/40", status: "active", passwordHash: "password123" },
-  { id: "usr_002", firstName: "Bob", lastName: "Builder", email: "bob@example.com", whatsappNumber: "+12345678901", companyName: "Builders Co.", subscription: "Basic", devices: 1, joinedDate: "2023-03-20", avatarUrl: "https://picsum.photos/seed/bob/40/40", status: "active", passwordHash: "password123" },
-  { id: "usr_003", firstName: "Charlie", lastName: "Brown", email: "charlie@example.com", whatsappNumber: "+13456789012", companyName: "Peanuts LLC", subscription: "pending", devices: 0, joinedDate: "2022-11-01", avatarUrl: "https://picsum.photos/seed/charlie/40/40", status: "pending", passwordHash: "password123" },
+  { id: "usr_001", firstName: "Alice", lastName: "Wonderland", email: "alice@example.com", whatsappNumber: "+11234567890", companyName: "Wonderland Inc.", subscription: "Premium", devices: 3, joinedDate: "2023-01-15", avatarUrl: "https://picsum.photos/seed/alice/40/40", status: "active", passwordHash: "password123", expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: "usr_002", firstName: "Bob", lastName: "Builder", email: "bob@example.com", whatsappNumber: "+12345678901", companyName: "Builders Co.", subscription: "Basic", devices: 1, joinedDate: "2023-03-20", avatarUrl: "https://picsum.photos/seed/bob/40/40", status: "active", passwordHash: "password123", expiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString() },
+  { id: "usr_003", firstName: "Charlie", lastName: "Brown", email: "charlie@example.com", whatsappNumber: "+13456789012", companyName: "Peanuts LLC", subscription: "pending", devices: 0, joinedDate: "2022-11-01", avatarUrl: "https://picsum.photos/seed/charlie/40/40", status: "pending", passwordHash: "password123", expiryDate: new Date(0).toISOString() },
 ];
 
 const defaultNewAdminCreatedUser: Omit<AdminUser, 'id' | 'joinedDate' | 'avatarUrl'> = {
@@ -72,7 +74,8 @@ const defaultNewAdminCreatedUser: Omit<AdminUser, 'id' | 'joinedDate' | 'avatarU
   companyName: "",
   subscription: "Basic",
   devices: 0,
-  status: "active", // Admin-created users are active by default
+  status: "active",
+  expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
 };
 
 const subscriptionOptions: AdminUser["subscription"][] = ["None", "Basic", "Premium", "Free Trial"];
@@ -93,7 +96,6 @@ export default function AdminUsersPage() {
     if (storedUsers) {
       setUsers(JSON.parse(storedUsers));
     } else {
-      // If no users in localStorage, initialize with mock data
       setUsers(initialMockUsers);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialMockUsers));
     }
@@ -112,6 +114,8 @@ export default function AdminUsersPage() {
         ...defaultNewAdminCreatedUser,
         joinedDate: new Date().toLocaleDateString('en-CA'),
         avatarUrl: `https://picsum.photos/seed/${Date.now()}/40/40`,
+        // Expiry for new user will default from defaultNewAdminCreatedUser or can be adjusted based on subscription
+        expiryDate: defaultNewAdminCreatedUser.subscription === "None" ? new Date(0).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
       });
       setEditingUserId(null);
     }
@@ -124,17 +128,26 @@ export default function AdminUsersPage() {
       return;
     }
     
+    let updatedUserData = { ...currentUserData };
+
+    // Handle expiry date based on subscription
+    if (updatedUserData.subscription === "None") {
+      updatedUserData.expiryDate = new Date(0).toISOString(); // Set to past for "None"
+    } else if (!updatedUserData.expiryDate) { // If no expiry date set for an active plan, default to 30 days from now
+      updatedUserData.expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
+    
     let updatedUsers;
-    if (editingUserId) { // Editing existing user
-      updatedUsers = users.map(user => user.id === editingUserId ? { ...user, ...currentUserData } as AdminUser : user);
-      toast({ title: "User Updated", description: `User ${currentUserData.firstName} ${currentUserData.lastName} has been updated.` });
-    } else { // Adding new user (by admin)
+    if (editingUserId) { 
+      updatedUsers = users.map(user => user.id === editingUserId ? { ...user, ...updatedUserData } as AdminUser : user);
+      toast({ title: "User Updated", description: `User ${updatedUserData.firstName} ${updatedUserData.lastName} has been updated.` });
+    } else { 
       const newUser: AdminUser = {
         id: `usr_${Date.now()}`,
-        ...defaultNewAdminCreatedUser, // ensures all fields are present
-        ...currentUserData,
-        joinedDate: currentUserData.joinedDate || new Date().toLocaleDateString('en-CA'),
-        avatarUrl: currentUserData.avatarUrl || `https://picsum.photos/seed/${Date.now()}/40/40`,
+        ...defaultNewAdminCreatedUser, 
+        ...updatedUserData, // This includes the potentially adjusted expiryDate
+        joinedDate: updatedUserData.joinedDate || new Date().toLocaleDateString('en-CA'),
+        avatarUrl: updatedUserData.avatarUrl || `https://picsum.photos/seed/${Date.now()}/40/40`,
       } as AdminUser;
       updatedUsers = [newUser, ...users];
       toast({ title: "User Added", description: `User ${newUser.firstName} ${newUser.lastName} has been added.` });
@@ -206,6 +219,7 @@ export default function AdminUsersPage() {
               <TableHead>Company</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Subscription</TableHead>
+              <TableHead>Expiry Date</TableHead>
               <TableHead className="text-center">Devices</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -231,6 +245,9 @@ export default function AdminUsersPage() {
                     {user.subscription}
                   </Badge>
                 </TableCell>
+                <TableCell>
+                  {user.expiryDate ? format(new Date(user.expiryDate), 'PPp') : 'N/A'}
+                </TableCell>
                 <TableCell className="text-center">{user.devices}</TableCell>
                 <TableCell>{user.joinedDate}</TableCell>
                 <TableCell className="text-right">
@@ -248,10 +265,27 @@ export default function AdminUsersPage() {
                       </DropdownMenuItem>
                       {user.status === 'pending' && (
                         <>
-                          <DropdownMenuItem onClick={() => handleSaveUser({ ...user, status: 'active', subscription: user.subscription === 'None' ? 'Basic' : user.subscription })}>
+                          <DropdownMenuItem onClick={() => {
+                             const approvedUser = { 
+                                ...user, 
+                                status: 'active', 
+                                subscription: user.subscription === 'None' ? 'Basic' : user.subscription,
+                                // Set default expiry if approving and not already set
+                                expiryDate: user.expiryDate && new Date(user.expiryDate) > new Date() ? user.expiryDate : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+                              };
+                              // Directly call a modified save logic or set current and save
+                              setCurrentUserData(approvedUser); 
+                              setEditingUserId(user.id);
+                              handleSaveUser(); // This will use the updated currentUserData
+                          }}>
                             <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Approve
                           </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleSaveUser({ ...user, status: 'rejected' })}>
+                          <DropdownMenuItem onClick={() => {
+                            const rejectedUser = { ...user, status: 'rejected' };
+                            setCurrentUserData(rejectedUser);
+                            setEditingUserId(user.id);
+                            handleSaveUser();
+                          }}>
                             <XCircle className="mr-2 h-4 w-4 text-red-500" /> Reject
                           </DropdownMenuItem>
                         </>
@@ -267,7 +301,7 @@ export default function AdminUsersPage() {
             ))}
             {filteredUsers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={9} className="h-24 text-center">
                   No users found.
                 </TableCell>
               </TableRow>
@@ -316,12 +350,34 @@ export default function AdminUsersPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="subscription" className="text-right">Subscription</Label>
-              <Select value={currentUserData.subscription || "None"} onValueChange={(value) => setCurrentUserData({ ...currentUserData, subscription: value })}>
+              <Select 
+                value={currentUserData.subscription || "None"} 
+                onValueChange={(value) => {
+                  const newSub = value as AdminUser['subscription'];
+                  const newExpiry = newSub === "None" 
+                                    ? new Date(0).toISOString() 
+                                    : currentUserData.expiryDate && new Date(currentUserData.expiryDate) > new Date()
+                                      ? currentUserData.expiryDate
+                                      : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+                  setCurrentUserData({ ...currentUserData, subscription: newSub, expiryDate: newExpiry });
+                }}
+              >
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select subscription" /></SelectTrigger>
                 <SelectContent>
                   {subscriptionOptions.map(option => <SelectItem key={option} value={option}>{option}</SelectItem>)}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="expiryDate" className="text-right">Expiry Date</Label>
+              <Input 
+                id="expiryDate" 
+                type="datetime-local" 
+                value={currentUserData.expiryDate ? format(new Date(currentUserData.expiryDate), "yyyy-MM-dd'T'HH:mm") : ""} 
+                onChange={(e) => setCurrentUserData({ ...currentUserData, expiryDate: e.target.value ? new Date(e.target.value).toISOString() : undefined })} 
+                className="col-span-3" 
+                disabled={currentUserData.subscription === "None"}
+              />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="devices" className="text-right">Devices</Label>

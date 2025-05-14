@@ -15,8 +15,10 @@ import {
   Bot,
   LogOut,
   ShieldCheck,
+  ShoppingCart, 
+  Send, // Added Send icon for notifications
   type LucideIcon,
-  UserCircle, // Added for generic user icon
+  UserCircle, 
 } from "lucide-react";
 import {
   SidebarMenu,
@@ -31,7 +33,7 @@ import { Logo } from "@/components/icons/logo";
 import { Separator } from "@/components/ui/separator";
 import React from "react";
 import { useAdminAuth } from "@/context/admin-auth-context";
-import { useUser } from "@/context/user-context"; // Added import
+import { useUser } from "@/context/user-context"; 
 import { Button } from "../ui/button";
 
 
@@ -41,14 +43,15 @@ interface NavItem {
   icon: LucideIcon;
   matchExact?: boolean;
   subItems?: NavItem[];
-  adminOnly?: boolean; // Show only if admin is logged in
-  userOnly?: boolean; // Show only if a regular user is logged in
-  guestOnly?: boolean; // Show only if no user (admin or regular) is logged in
-  action?: () => void; // For items like logout
+  adminOnly?: boolean; 
+  userOnly?: boolean; 
+  guestOnly?: boolean; 
+  action?: () => void; 
 }
 
 const commonNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, matchExact: true },
+  { href: "/products", label: "Shop Products", icon: ShoppingCart }, 
   { href: "/troubleshoot", label: "AI Troubleshoot", icon: Bot },
   { href: "/issues", label: "Common Issues", icon: Wrench },
 ];
@@ -67,24 +70,25 @@ const adminNavItemsSection: NavItem = {
     { href: "/admin/devices", label: "Devices", icon: HardDrive, adminOnly: true },
     { href: "/admin/users", label: "Users", icon: Users, adminOnly: true },
     { href: "/admin/manage-issues", label: "Manage Issues", icon: ShieldQuestion, adminOnly: true },
+    { href: "/admin/send-notifications", label: "Send Notifications", icon: Send, adminOnly: true },
   ],
 };
 
 const authNavItems: NavItem[] = [
   { href: "/auth/login", label: "User Login", icon: LogIn, guestOnly: true },
   { href: "/auth/register", label: "User Register", icon: UserPlus, guestOnly: true },
-  { href: "/auth/admin-login", label: "Admin Login", icon: ShieldCheck, guestOnly: true }, // Keep admin login for guests too
+  { href: "/auth/admin-login", label: "Admin Login", icon: ShieldCheck, guestOnly: true }, 
 ];
 
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { isAdmin, logout: adminLogout, isLoading: isAdminAuthLoading } = useAdminAuth();
-  const { currentUser, logoutUser: regularUserLogout } = useUser(); // Get user context
+  const { currentUser, logoutUser: regularUserLogout } = useUser(); 
 
   const renderNavItem = (item: NavItem, isSubItem = false) => {
     if (item.adminOnly && !isAdmin) return null;
-    if (item.userOnly && (!currentUser || !currentUser.isLoggedIn || isAdmin)) return null; // Show only if regular user is logged in and not admin
+    if (item.userOnly && (!currentUser || !currentUser.isLoggedIn || isAdmin)) return null; 
     if (item.guestOnly && (isAdmin || (currentUser && currentUser.isLoggedIn))) return null;
 
 
@@ -154,7 +158,7 @@ export function SidebarNav() {
         {isAdmin && (
           renderNavItem({ href: "#", label: "Admin Logout", icon: LogOut, action: adminLogout })
         )}
-        {currentUser && currentUser.isLoggedIn && !isAdmin && ( // Regular user logout, if not admin
+        {currentUser && currentUser.isLoggedIn && !isAdmin && ( 
           renderNavItem({ href: "#", label: "User Logout", icon: LogOut, action: regularUserLogout })
         )}
       </SidebarMenu>

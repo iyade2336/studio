@@ -20,7 +20,7 @@ import { useState } from "react";
 import { useUser } from "@/context/user-context"; 
 import { useRouter } from "next/navigation"; 
 import { useToast } from "@/hooks/use-toast"; 
-import type { AdminUser } from "@/app/admin/users/page"; // Assuming AdminUser type
+import type { AdminUser } from "@/app/admin/users/page"; 
 
 const formSchema = z.object({
   email: z.string().email({ message: "Invalid email address." }),
@@ -45,7 +45,6 @@ export function LoginForm() {
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    // Simulate API call & authentication
     await new Promise(resolve => setTimeout(resolve, 1000));
 
     try {
@@ -60,7 +59,6 @@ export function LoginForm() {
         return;
       }
 
-      // INSECURE: Password check for demo. In a real app, backend handles this with hashing.
       if (foundUser.passwordHash !== values.password) {
         toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
         setIsLoading(false);
@@ -80,28 +78,24 @@ export function LoginForm() {
       }
       
       if (foundUser.status === 'active') {
-        // Adapt AdminUser to User for context.
-        // The User context might expect a different structure.
-        // For now, let's pass the relevant fields.
         loginUser({
           id: foundUser.id,
-          name: `${foundUser.firstName} ${foundUser.lastName}`, // Combine first and last name
+          name: `${foundUser.firstName} ${foundUser.lastName}`,
           email: foundUser.email,
           isLoggedIn: true,
           subscription: {
-            planName: foundUser.subscription,
-            // Expiry date would need to be set by admin upon approval/plan assignment
-            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Placeholder
+            planName: foundUser.subscription,            
+            expiryDate: foundUser.expiryDate || new Date(0).toISOString(), 
           },
-          // Add other fields from AdminUser if needed by User context
           firstName: foundUser.firstName,
           lastName: foundUser.lastName,
           companyName: foundUser.companyName,
           whatsappNumber: foundUser.whatsappNumber,
-
+          // Pass expiryDate explicitly if User interface expects it at top level too
+          // expiryDate: foundUser.expiryDate, 
         });
         toast({ title: "Login Successful", description: "Welcome back!" });
-        router.push('/'); // Redirect to dashboard
+        router.push('/'); 
       } else {
         toast({ title: "Login Failed", description: "Account status unknown.", variant: "destructive" });
         setIsLoading(false);

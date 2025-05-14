@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -10,11 +11,13 @@
 
 import {ai} from '@/ai/genkit';
 import {z} from 'genkit';
+import type {GenerateOptions} from 'genkit';
 
 const TroubleshootSensorDataInputSchema = z.object({
   temperature: z.number().describe('The temperature reading from the sensor.'),
   humidity: z.number().describe('The humidity reading from the sensor.'),
   waterLeakage: z.boolean().describe('Whether water leakage is detected or not.'),
+  selectedModel: z.enum(['gemini', 'chatgpt']).optional().describe('The AI model to use for troubleshooting.'),
   additionalContext: z
     .string()
     .optional()
@@ -42,7 +45,7 @@ const prompt = ai.definePrompt({
   name: 'troubleshootSensorDataPrompt',
   input: {schema: TroubleshootSensorDataInputSchema},
   output: {schema: TroubleshootSensorDataOutputSchema},
-  prompt: `You are an expert IoT device troubleshooter.
+  prompt: `You are an expert IoT device troubleshooter. You were invoked using the {{selectedModel}} model.
 
 You will use the sensor data to identify potential problems and suggest solutions.
 
@@ -65,8 +68,27 @@ const troubleshootSensorDataFlow = ai.defineFlow(
     inputSchema: TroubleshootSensorDataInputSchema,
     outputSchema: TroubleshootSensorDataOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
-    return output!;
+  async (input: TroubleshootSensorDataInput) => {
+    const options: GenerateOptions = {};
+    
+    if (input.selectedModel === 'chatgpt') {
+      // This attempts to use a model named 'openai/gpt-3.5-turbo'.
+      // If the 'openai' plugin is not configured in genkit.ts or this model alias is incorrect,
+      // Genkit will throw an error (e.g., "Unknown model").
+      // For this exercise, we allow it to try. A more robust solution would check plugin availability.
+      options.model = 'openai/gpt-3.5-turbo'; // A common identifier, actual name might vary by Genkit plugin
+    } else {
+      // For 'gemini' or if undefined, let Genkit use the default model configured in the `ai` instance.
+      // Explicitly setting it to the known Gemini model if needed:
+      // options.model = 'googleai/gemini-2.0-flash'; 
+      // However, if it's the default, not setting it is fine.
+    }
+
+    const {output} = await prompt(input, options); // Pass model override options here
+    
+    if (!output) {
+      throw new Error("AI failed to generate a response.");
+    }
+    return output;
   }
 );

@@ -21,14 +21,16 @@ export interface User {
   companyName: string;
   isLoggedIn: boolean;
   subscription: Subscription;
+  expiryDate?: string; // Added to ensure it's passed correctly during login
 }
 
 export interface AppNotification {
   id: string;
   message: string;
   read: boolean;
-  timestamp: Date;
+  timestamp: Date; // Keep as Date object in state, stringify for localStorage
   type: 'user' | 'admin' | 'arduino' | 'system';
+  target?: 'all_users' | string; // 'all_users' or a specific userId for 'admin' type
 }
 
 interface UserContextType {
@@ -37,7 +39,7 @@ interface UserContextType {
   unreadNotificationCount: number;
   loginUser: (userData: User) => void;
   logoutUser: () => void;
-  addNotification: (message: string, type: AppNotification['type']) => void;
+  addNotification: (message: string, type: AppNotification['type'], target?: AppNotification['target']) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotifications: () => void;
@@ -47,21 +49,6 @@ interface UserContextType {
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 // Mock initial user data - will be overridden by login or localStorage
-const MOCK_USER_LOGGED_IN_TEMPLATE: User = {
-  id: 'user-123',
-  name: 'Demo User',
-  firstName: 'Demo',
-  lastName: 'User',
-  email: 'demo@example.com',
-  whatsappNumber: '+1234567890',
-  companyName: 'Demo Corp',
-  isLoggedIn: true,
-  subscription: {
-    planName: 'Premium Plan',
-    expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), 
-  },
-};
-
 const MOCK_USER_LOGGED_OUT: User = {
   id: '',
   name: 'Guest',
@@ -87,47 +74,75 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem(LOCAL_STORAGE_KEY_CURRENT_USER);
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser) as User;
-        if (parsedUser.isLoggedIn) {
-           setCurrentUser(parsedUser);
-        } else {
+    // Function to load current user
+    const loadCurrentUser = () => {
+      const storedUser = localStorage.getItem(LOCAL_STORAGE_KEY_CURRENT_USER);
+      if (storedUser) {
+        try {
+          const parsedUser = JSON.parse(storedUser) as User;
+          if (parsedUser.isLoggedIn) {
+            setCurrentUser(parsedUser);
+          } else {
+            setCurrentUser(MOCK_USER_LOGGED_OUT);
+          }
+        } catch (e) {
           setCurrentUser(MOCK_USER_LOGGED_OUT);
         }
-      } catch (e) {
-        setCurrentUser(MOCK_USER_LOGGED_OUT); 
+      } else {
+        setCurrentUser(MOCK_USER_LOGGED_OUT);
       }
-    } else {
-       // By default, user is logged out if nothing in localStorage
-       setCurrentUser(MOCK_USER_LOGGED_OUT);
-    }
+    };
 
-    const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
-    if (storedNotifications) {
-      try {
-        const parsedNotifications = (JSON.parse(storedNotifications) as AppNotification[]).map(n => ({...n, timestamp: new Date(n.timestamp)}));
-        setNotifications(parsedNotifications);
-      } catch(e) {
-        // ignore
-      }
-    } else {
+    // Function to load notifications
+    const loadNotifications = () => {
+      const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
+      if (storedNotifications) {
+        try {
+          const parsedNotifications = (JSON.parse(storedNotifications) as any[]).map(n => ({ ...n, timestamp: new Date(n.timestamp) } as AppNotification));
+          setNotifications(parsedNotifications);
+        } catch (e) {
+          console.error("Error parsing notifications from localStorage:", e);
+          setNotifications([]); // Fallback to empty on error
+        }
+      } else {
+        // Initial seeding if no notifications are found in localStorage
         setNotifications([
-            { id: '1', message: 'Welcome to IoT Guardian!', type: 'system', read: false, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
-            { id: '2', message: 'Device "Living Room Sensor" reported high temperature.', type: 'arduino', read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60) },
+          { id: 'default_welcome_notification_iot_guardian_app_1', message: 'Welcome to IoT Guardian!', type: 'system', read: false, timestamp: new Date(Date.now() - 1000 * 60 * 5), target: 'all_users' },
         ]);
-    }
-  }, []);
+      }
+    };
 
+    loadCurrentUser();
+    loadNotifications();
+
+    // Listen for storage changes from other tabs/windows
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key === LOCAL_STORAGE_KEY_CURRENT_USER) {
+        loadCurrentUser(); // Reload user if their storage item changed
+      }
+      if (event.key === LOCAL_STORAGE_KEY_NOTIFICATIONS) {
+        loadNotifications(); // Reload notifications if their storage item changed
+      }
+    };
+
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []); // Empty dependency array: runs once on mount, cleans up on unmount.
+
+  // This useEffect saves current user to localStorage whenever it changes
   useEffect(() => {
     if (currentUser && currentUser.isLoggedIn) {
       localStorage.setItem(LOCAL_STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser));
     } else {
+      // If user logs out or is guest, remove from localStorage or set a guest state
       localStorage.removeItem(LOCAL_STORAGE_KEY_CURRENT_USER);
     }
   }, [currentUser]);
 
+  // This useEffect saves notifications to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
@@ -137,24 +152,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const userToSave: User = {
       ...userData,
       isLoggedIn: true,
-      name: `${userData.firstName} ${userData.lastName}`, // Ensure 'name' is combined
+      name: `${userData.firstName} ${userData.lastName}`,
+      subscription: { // Ensure subscription object is correctly formed
+        planName: userData.subscription?.planName || "None",
+        expiryDate: userData.subscription?.expiryDate || new Date(0).toISOString(),
+      }
     };
     setCurrentUser(userToSave);
   }, []);
 
   const logoutUser = useCallback(() => {
     setCurrentUser(MOCK_USER_LOGGED_OUT);
-    // localStorage.removeItem(LOCAL_STORAGE_KEY_CURRENT_USER); // Handled by useEffect
     router.push('/auth/login');
   }, [router]);
 
-  const addNotification = useCallback((message: string, type: AppNotification['type']) => {
+  const addNotification = useCallback((message: string, type: AppNotification['type'], target: AppNotification['target'] = 'all_users') => {
     const newNotification: AppNotification = {
       id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       message,
       type,
       read: false,
       timestamp: new Date(),
+      target,
     };
     setNotifications(prev => [newNotification, ...prev].slice(0, 20)); 
   }, []);
@@ -173,23 +192,43 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
   }, []);
 
-  const unreadNotificationCount = notifications.filter(n => !n.read).length;
+  const unreadNotificationCount = notifications.filter(n => {
+    const isTargetedToCurrentUser = n.target === 'all_users' || (currentUser && currentUser.isLoggedIn && n.target === currentUser.id);
+    return !n.read && isTargetedToCurrentUser;
+  }).length;
+
 
   const getSubscriptionDaysRemaining = useCallback((): string => {
-    if (!currentUser || !currentUser.isLoggedIn || !currentUser.subscription.expiryDate) {
+    if (!currentUser || !currentUser.isLoggedIn || currentUser.subscription.planName === "None") {
       return "N/A";
     }
-    const expiry = new Date(currentUser.subscription.expiryDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (expiry < today) {
-      return "Expired";
+    if (!currentUser.subscription.expiryDate) {
+        return "No expiry date set.";
     }
 
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return `${diffDays} day(s) remaining`;
+    const expiry = new Date(currentUser.subscription.expiryDate);
+    const now = new Date();
+
+    if (expiry < now) {
+      // If plan is not "None" but expired, it's expired.
+      if(currentUser.subscription.planName !== "None") {
+        return "Expired";
+      }
+      return "N/A"; // Should not happen if plan is "None"
+    }
+
+    const diffTime = expiry.getTime() - now.getTime();
+    
+    const days = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diffTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutes = Math.floor((diffTime % (1000 * 60 * 60)) / (1000 * 60));
+
+    let remainingString = "";
+    if (days > 0) remainingString += `${days}d `;
+    if (days > 0 || hours > 0 ) remainingString += `${hours}h `;
+    remainingString += `${minutes}m remaining`;
+    
+    return remainingString.trim();
   }, [currentUser]);
 
   return (
@@ -219,3 +258,4 @@ export function useUser() {
   }
   return context;
 }
+

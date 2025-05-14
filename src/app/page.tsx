@@ -5,7 +5,7 @@ import { RealtimeDataGrid } from "@/components/dashboard/realtime-data-grid";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { AlertTriangle, Info, Wrench, CreditCard, MonitorSmartphone } from "lucide-react"; 
+import { AlertTriangle, Info, Wrench, CreditCard, MonitorSmartphone, LogIn } from "lucide-react"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUser } from "@/context/user-context"; // Import useUser hook
 
@@ -49,14 +49,37 @@ export default function DashboardPage() {
         </Card>
       )}
       
-      <Card>
-        <CardHeader>
-          <CardTitle>Real-time Sensor Data</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RealtimeDataGrid />
-        </CardContent>
-      </Card>
+      {currentUser?.isLoggedIn ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Real-time Sensor Data</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <RealtimeDataGrid />
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle>Real-time Sensor Data</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-center py-12">
+              <MonitorSmartphone className="mx-auto h-16 w-16 text-muted-foreground mb-4" />
+              <p className="text-xl font-semibold text-foreground mb-2">View Your Sensor Data</p>
+              <p className="text-muted-foreground mb-6">
+                Please log in to monitor your connected IoT devices in real-time.
+              </p>
+              <Button asChild size="lg">
+                <Link href="/auth/login">
+                  <LogIn className="mr-2 h-5 w-5" /> Login to View Data
+                </Link>
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="hover:shadow-lg transition-shadow">
@@ -116,3 +139,4 @@ export default function DashboardPage() {
     </div>
   );
 }
+

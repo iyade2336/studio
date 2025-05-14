@@ -1,3 +1,4 @@
+
 "use client";
 import type { TroubleshootSensorDataInput } from "@/ai/flows/troubleshoot-sensor-data";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -16,12 +17,14 @@ import {
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 
 const formSchema = z.object({
   temperature: z.coerce.number().min(-50, "Too low").max(100, "Too high"),
   humidity: z.coerce.number().min(0, "Cannot be less than 0").max(100, "Cannot be more than 100"),
   waterLeakage: z.boolean().default(false),
+  selectedModel: z.enum(['gemini', 'chatgpt']).default('gemini'),
   additionalContext: z.string().optional(),
 });
 
@@ -37,6 +40,7 @@ export function TroubleshootingForm({ onSubmit, isLoading }: TroubleshootingForm
       temperature: 20,
       humidity: 50,
       waterLeakage: false,
+      selectedModel: 'gemini',
       additionalContext: "",
     },
   });
@@ -93,6 +97,30 @@ export function TroubleshootingForm({ onSubmit, isLoading }: TroubleshootingForm
                   Check this if your sensor indicates a water leak.
                 </FormDescription>
               </div>
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="selectedModel"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>AI Model</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select an AI model" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  <SelectItem value="gemini">Gemini (Google AI)</SelectItem>
+                  <SelectItem value="chatgpt">Chat GPT (OpenAI)</SelectItem>
+                </SelectContent>
+              </Select>
+              <FormDescription>
+                Choose the AI model for troubleshooting. Note: Chat GPT may require separate API configuration.
+              </FormDescription>
+              <FormMessage />
             </FormItem>
           )}
         />
