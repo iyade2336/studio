@@ -57,7 +57,7 @@ export function MainLayout({ children }: MainLayoutProps) {
 
   const displayedNotifications = notifications.filter(notif => {
     if (notif.target === 'all_users') return true;
-    if (currentUser && notif.target === currentUser.id) return true;
+    if (currentUser && currentUser.isLoggedIn && notif.target === currentUser.id) return true; 
     // Default to showing system/arduino notifications if not specifically targeted, 
     // or if they are implicitly for 'all_users' if target is undefined
     if (!notif.target && (notif.type === 'system' || notif.type === 'arduino')) return true; 
@@ -202,3 +202,4 @@ export function MainLayout({ children }: MainLayoutProps) {
     </SidebarProvider>
   );
 }
+
