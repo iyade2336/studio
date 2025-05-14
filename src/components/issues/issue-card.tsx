@@ -1,3 +1,4 @@
+
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Image from "next/image";
@@ -11,6 +12,7 @@ export interface Issue {
   imageUrl: string;
   potentialCauses: string[];
   solutions: string[];
+  reportedDate?: string; // Optional: ISO date string for when the issue was reported/created
 }
 
 interface IssueCardProps {

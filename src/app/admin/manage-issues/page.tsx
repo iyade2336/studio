@@ -1,7 +1,8 @@
+
 "use client";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Edit3, Trash2, Search, Image as ImageIcon } from "lucide-react";
+import { PlusCircle, Edit3, Trash2, Search, Download, CalendarDays } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -19,12 +20,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useState } from 'react';
-import type { Issue } from "@/components/issues/issue-card"; // Re-using the type
+import type { Issue } from "@/components/issues/issue-card";
+import { format } from 'date-fns';
 
 const initialMockIssues: Issue[] = [
   {
@@ -34,15 +35,26 @@ const initialMockIssues: Issue[] = [
     imageUrl: "https://picsum.photos/seed/offline/80/60",
     potentialCauses: ["Power supply issue", "Network connectivity problem"],
     solutions: ["Check power cable.", "Verify Wi-Fi/GSM connection."],
+    reportedDate: "2023-10-01T10:00:00Z",
   },
   {
     id: "2",
     title: "Inaccurate Temperature",
     description: "Temperature values are consistently off.",
-    imageUrl: "https://picsum.photos/seed/temp/80/60",
+    imageUrl: "httpsum.photos/seed/temp/80/60",
     potentialCauses: ["Sensor miscalibration", "Sensor placement issue"],
     solutions: ["Recalibrate sensor.", "Relocate sensor."],
+    reportedDate: "2023-11-15T14:30:00Z",
   },
+  {
+    id: "3",
+    title: "Water Leak False Alarm",
+    description: "System triggers water leak alert without actual leak.",
+    imageUrl: "httpsum.photos/seed/water/80/60",
+    potentialCauses: ["High sensor sensitivity", "Condensation"],
+    solutions: ["Adjust sensitivity.", "Clean sensor."],
+    reportedDate: "2023-12-05T09:15:00Z",
+  }
 ];
 
 
@@ -53,7 +65,7 @@ export default function AdminManageIssuesPage() {
   const [searchTerm, setSearchTerm] = useState('');
 
   const handleAddNew = () => {
-    setCurrentIssue({});
+    setCurrentIssue({ reportedDate: new Date().toISOString() });
     setIsModalOpen(true);
   };
 
@@ -63,21 +75,22 @@ export default function AdminManageIssuesPage() {
   };
   
   const handleDelete = (issueId: string) => {
-    // Add confirmation dialog in real app
     setIssues(issues.filter(issue => issue.id !== issueId));
   };
 
   const handleSaveIssue = () => {
-    // In a real app, this would involve an API call
     if (currentIssue) {
-      if (currentIssue.id) { // Editing existing
+      if (currentIssue.id) {
         setIssues(issues.map(iss => iss.id === currentIssue!.id ? currentIssue as Issue : iss));
-      } else { // Adding new
-        const newIssue = { ...currentIssue, id: `iss_${Date.now()}` } as Issue;
-        // Ensure default empty arrays if not provided
-        newIssue.potentialCauses = newIssue.potentialCauses || [];
-        newIssue.solutions = newIssue.solutions || [];
-        newIssue.imageUrl = newIssue.imageUrl || 'https://picsum.photos/seed/newissue/80/60';
+      } else {
+        const newIssue = { 
+          ...currentIssue, 
+          id: `iss_${Date.now()}`,
+          potentialCauses: currentIssue.potentialCauses || [],
+          solutions: currentIssue.solutions || [],
+          imageUrl: currentIssue.imageUrl || 'https://picsum.photos/seed/newissue/80/60',
+          reportedDate: currentIssue.reportedDate || new Date().toISOString(),
+        } as Issue;
         setIssues([...issues, newIssue]);
       }
     }
@@ -90,6 +103,48 @@ export default function AdminManageIssuesPage() {
     issue.description.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const exportToCSV = (dataToExport: Issue[], filenamePrefix: string) => {
+    const header = ["ID", "Title", "Description", "Image URL", "Potential Causes", "Solutions", "Reported Date"];
+    const csvRows = [
+      header.join(','),
+      ...dataToExport.map(issue => [
+        issue.id,
+        `"${issue.title.replace(/"/g, '""')}"`,
+        `"${issue.description.replace(/"/g, '""')}"`,
+        issue.imageUrl,
+        `"${issue.potentialCauses.join('; ').replace(/"/g, '""')}"`,
+        `"${issue.solutions.join('; ').replace(/"/g, '""')}"`,
+        issue.reportedDate ? format(new Date(issue.reportedDate), 'yyyy-MM-dd HH:mm:ss') : ''
+      ].join(','))
+    ];
+    const csvString = csvRows.join('\r\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', `${filenamePrefix}_issues_${format(new Date(), 'yyyyMMdd')}.csv`);
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleExportWeekly = () => {
+    const oneWeekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const weeklyIssues = issues.filter(issue => issue.reportedDate && new Date(issue.reportedDate) >= oneWeekAgo);
+    exportToCSV(weeklyIssues, 'weekly');
+  };
+
+  const handleExportMonthly = () => {
+    const oneMonthAgo = new Date();
+    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+    const monthlyIssues = issues.filter(issue => issue.reportedDate && new Date(issue.reportedDate) >= oneMonthAgo);
+    exportToCSV(monthlyIssues, 'monthly');
+  };
+
+
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
@@ -101,8 +156,8 @@ export default function AdminManageIssuesPage() {
         </Button>
       </PageHeader>
 
-      <div className="flex items-center justify-between gap-4">
-        <div className="relative flex-1 md:grow-0">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="relative flex-1 w-full sm:w-auto sm:grow-0">
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
@@ -111,6 +166,14 @@ export default function AdminManageIssuesPage() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleExportWeekly}>
+            <Download className="mr-2 h-4 w-4" /> Export Weekly
+          </Button>
+          <Button variant="outline" onClick={handleExportMonthly}>
+            <Download className="mr-2 h-4 w-4" /> Export Monthly
+          </Button>
         </div>
       </div>
 
@@ -121,6 +184,7 @@ export default function AdminManageIssuesPage() {
               <TableHead className="w-[80px]">Image</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Description</TableHead>
+              <TableHead>Reported</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -139,11 +203,14 @@ export default function AdminManageIssuesPage() {
                 </TableCell>
                 <TableCell className="font-medium">{issue.title}</TableCell>
                 <TableCell className="max-w-xs truncate">{issue.description}</TableCell>
+                <TableCell>
+                  {issue.reportedDate ? format(new Date(issue.reportedDate), 'PP') : 'N/A'}
+                </TableCell>
                 <TableCell className="text-right">
                   <Button variant="ghost" size="icon" onClick={() => handleEdit(issue)} className="mr-2">
                     <Edit3 className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(issue.id)} className="text-red-500 hover:text-red-600">
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(issue.id)} className="text-destructive hover:text-destructive">
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
@@ -151,7 +218,7 @@ export default function AdminManageIssuesPage() {
             ))}
              {filteredIssues.length === 0 && (
               <TableRow>
-                <TableCell colSpan={4} className="text-center h-24">
+                <TableCell colSpan={5} className="text-center h-24">
                   No issues found.
                 </TableCell>
               </TableRow>
@@ -181,21 +248,22 @@ export default function AdminManageIssuesPage() {
               <Label htmlFor="imageUrl" className="text-right">Image URL</Label>
               <Input id="imageUrl" value={currentIssue?.imageUrl || ''} onChange={(e) => setCurrentIssue({...currentIssue, imageUrl: e.target.value})} className="col-span-3" placeholder="https://picsum.photos/seed/example/600/400"/>
             </div>
-            {/* Basic image upload placeholder */}
             <div className="grid grid-cols-4 items-center gap-4">
-               <Label htmlFor="imageUpload" className="text-right self-start pt-2">Upload Image</Label>
-               <div className="col-span-3">
-                <Input id="imageUpload" type="file" className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"/>
-                <p className="text-xs text-muted-foreground mt-1">Alternatively, provide an Image URL above.</p>
-               </div>
+               <Label htmlFor="reportedDate" className="text-right">Reported Date</Label>
+               <Input 
+                id="reportedDate" 
+                type="date" 
+                value={currentIssue?.reportedDate ? format(new Date(currentIssue.reportedDate), 'yyyy-MM-dd') : ''} 
+                onChange={(e) => setCurrentIssue({...currentIssue, reportedDate: new Date(e.target.value).toISOString()})} 
+                className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="potentialCauses" className="text-right pt-2">Potential Causes</Label>
-              <Textarea id="potentialCauses" value={currentIssue?.potentialCauses?.join('\n') || ''} onChange={(e) => setCurrentIssue({...currentIssue, potentialCauses: e.target.value.split('\n')})} className="col-span-3 min-h-[80px]" placeholder="One cause per line"/>
+              <Textarea id="potentialCauses" value={Array.isArray(currentIssue?.potentialCauses) ? currentIssue.potentialCauses.join('\n') : ''} onChange={(e) => setCurrentIssue({...currentIssue, potentialCauses: e.target.value.split('\n')})} className="col-span-3 min-h-[80px]" placeholder="One cause per line"/>
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="solutions" className="text-right pt-2">Solutions</Label>
-              <Textarea id="solutions" value={currentIssue?.solutions?.join('\n') || ''} onChange={(e) => setCurrentIssue({...currentIssue, solutions: e.target.value.split('\n')})} className="col-span-3 min-h-[80px]" placeholder="One solution per line"/>
+              <Textarea id="solutions" value={Array.isArray(currentIssue?.solutions) ? currentIssue.solutions.join('\n') : ''} onChange={(e) => setCurrentIssue({...currentIssue, solutions: e.target.value.split('\n')})} className="col-span-3 min-h-[80px]" placeholder="One solution per line"/>
             </div>
           </div>
           <DialogFooter>

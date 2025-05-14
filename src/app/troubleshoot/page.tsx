@@ -22,17 +22,20 @@ export default function TroubleshootPage() {
     setError(null);
     setResult(null);
     try {
+      // data already includes selectedModel from the form
       const aiResponse = await troubleshootSensorData(data);
       setResult(aiResponse);
     } catch (e) {
       console.error("Error calling AI flow:", e);
-      setError(e instanceof Error ? e.message : "An unknown error occurred.");
+      setError(e instanceof Error ? e.message : "An unknown error occurred. The selected AI model might not be configured.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const isPremiumUser = currentUser?.isLoggedIn && currentUser.subscription.planName === "Premium";
+  // Allow access even if not premium, but certain features (like model choice or the flow itself) might be restricted.
+  // For this iteration, the premium check remains for the whole page.
 
   if (!isPremiumUser) {
     return (
@@ -74,7 +77,7 @@ export default function TroubleshootPage() {
     <div className="space-y-6 md:space-y-8">
       <PageHeader
         title="AI Powered Troubleshooting"
-        description="Describe your sensor readings and get intelligent advice."
+        description="Describe your sensor readings and get intelligent advice. Choose your preferred AI model."
       />
       <Card className="shadow-md">
         <CardHeader>
@@ -83,7 +86,7 @@ export default function TroubleshootPage() {
             Sensor Data Input
           </CardTitle>
           <CardDescription>
-            Provide the current readings from your sensor and any additional context. Our AI will analyze the data and suggest potential issues and solutions.
+            Provide the current readings, select an AI model, and add any context. Our AI will analyze the data.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -92,9 +95,10 @@ export default function TroubleshootPage() {
       </Card>
       
       { (isLoading && !result && !error) && 
-        <div className="text-center py-4">
-          <p className="text-muted-foreground">AI is thinking...</p>
-          {/* You can add a more sophisticated loader here if desired */}
+        <div className="flex flex-col items-center justify-center text-center py-8 space-y-2">
+          <Bot className="h-12 w-12 text-primary animate-bounce" />
+          <p className="text-muted-foreground text-lg">AI is thinking...</p>
+          <p className="text-sm text-muted-foreground">Please wait a moment.</p>
         </div>
       }
 
@@ -102,4 +106,3 @@ export default function TroubleshootPage() {
     </div>
   );
 }
-
