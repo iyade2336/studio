@@ -28,8 +28,9 @@ export interface AppNotification {
   id: string;
   message: string;
   read: boolean;
-  timestamp: Date;
+  timestamp: Date; // Keep as Date object in state, stringify for localStorage
   type: 'user' | 'admin' | 'arduino' | 'system';
+  target?: 'all_users' | string; // 'all_users' or a specific userId for 'admin' type
 }
 
 interface UserContextType {
@@ -38,7 +39,7 @@ interface UserContextType {
   unreadNotificationCount: number;
   loginUser: (userData: User) => void;
   logoutUser: () => void;
-  addNotification: (message: string, type: AppNotification['type']) => void;
+  addNotification: (message: string, type: AppNotification['type'], target?: AppNotification['target']) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotifications: () => void;
@@ -92,15 +93,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
     if (storedNotifications) {
       try {
-        const parsedNotifications = (JSON.parse(storedNotifications) as AppNotification[]).map(n => ({...n, timestamp: new Date(n.timestamp)}));
+        const parsedNotifications = (JSON.parse(storedNotifications) as any[]).map(n => ({...n, timestamp: new Date(n.timestamp)} as AppNotification));
         setNotifications(parsedNotifications);
       } catch(e) {
         // ignore
       }
     } else {
         setNotifications([
-            { id: '1', message: 'Welcome to IoT Guardian!', type: 'system', read: false, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
-            { id: '2', message: 'Device "Living Room Sensor" reported high temperature.', type: 'arduino', read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60) },
+            { id: '1', message: 'Welcome to IoT Guardian!', type: 'system', read: false, timestamp: new Date(Date.now() - 1000 * 60 * 5), target: 'all_users' },
+            { id: '2', message: 'Device "Living Room Sensor" reported high temperature.', type: 'arduino', read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60), target: 'all_users' }, // Assuming arduino notifications are for all initially
         ]);
     }
   }, []);
@@ -136,13 +137,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     router.push('/auth/login');
   }, [router]);
 
-  const addNotification = useCallback((message: string, type: AppNotification['type']) => {
+  const addNotification = useCallback((message: string, type: AppNotification['type'], target: AppNotification['target'] = 'all_users') => {
     const newNotification: AppNotification = {
       id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
       message,
       type,
       read: false,
       timestamp: new Date(),
+      target,
     };
     setNotifications(prev => [newNotification, ...prev].slice(0, 20)); 
   }, []);
@@ -161,7 +163,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
     setNotifications([]);
   }, []);
 
-  const unreadNotificationCount = notifications.filter(n => !n.read).length;
+  const unreadNotificationCount = notifications.filter(n => {
+    const isTargetedToCurrentUser = n.target === 'all_users' || (currentUser && n.target === currentUser.id);
+    return !n.read && isTargetedToCurrentUser;
+  }).length;
+
 
   const getSubscriptionDaysRemaining = useCallback((): string => {
     if (!currentUser || !currentUser.isLoggedIn || currentUser.subscription.planName === "None") {

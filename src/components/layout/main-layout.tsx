@@ -54,6 +54,15 @@ export function MainLayout({ children }: MainLayoutProps) {
     const randomType = types[Math.floor(Math.random() * types.length)];
     addNotification(`This is a test ${randomType} notification at ${new Date().toLocaleTimeString()}`, randomType);
   };
+
+  const displayedNotifications = notifications.filter(notif => {
+    if (notif.target === 'all_users') return true;
+    if (currentUser && notif.target === currentUser.id) return true;
+    // Default to showing system/arduino notifications if not specifically targeted, 
+    // or if they are implicitly for 'all_users' if target is undefined
+    if (!notif.target && (notif.type === 'system' || notif.type === 'arduino')) return true; 
+    return false;
+  }).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
   
   return (
     <SidebarProvider defaultOpen={!isMobile} collapsible={isMobile ? "offcanvas" : "icon"}>
@@ -86,16 +95,16 @@ export function MainLayout({ children }: MainLayoutProps) {
               <DropdownMenuContent align="end" className="w-80 sm:w-96">
                 <DropdownMenuLabel className="flex justify-between items-center">
                   <span>Notifications</span>
-                  {notifications.length > 0 && (
+                  {displayedNotifications.length > 0 && (
                      <Button variant="ghost" size="sm" onClick={markAllNotificationsAsRead} className="text-xs h-auto py-1 px-2">Mark all as read</Button>
                   )}
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <ScrollArea className="h-[300px]">
-                  {notifications.length === 0 ? (
+                  {displayedNotifications.length === 0 ? (
                     <DropdownMenuItem disabled className="justify-center text-muted-foreground">No new notifications</DropdownMenuItem>
                   ) : (
-                    notifications.map(notif => (
+                    displayedNotifications.map(notif => (
                       <DropdownMenuItem key={notif.id} onSelect={(e) => e.preventDefault()} className={cn("flex items-start gap-2", !notif.read && "font-semibold")}>
                          {notif.read ? <Circle className="h-3 w-3 mt-1 text-muted-foreground/50"/> : <CheckCircle className="h-3 w-3 mt-1 text-accent"/>}
                         <div className="flex-1">
@@ -111,7 +120,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                     ))
                   )}
                 </ScrollArea>
-                {notifications.length > 0 && (
+                {displayedNotifications.length > 0 && (
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onSelect={clearNotifications} className="text-destructive hover:!bg-destructive/10 justify-center">

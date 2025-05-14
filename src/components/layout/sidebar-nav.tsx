@@ -15,7 +15,8 @@ import {
   Bot,
   LogOut,
   ShieldCheck,
-  ShoppingCart, // Added ShoppingCart
+  ShoppingCart, 
+  Send, // Added Send icon for notifications
   type LucideIcon,
   UserCircle, 
 } from "lucide-react";
@@ -50,7 +51,7 @@ interface NavItem {
 
 const commonNavItems: NavItem[] = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard, matchExact: true },
-  { href: "/products", label: "Shop Products", icon: ShoppingCart }, // Added Shop Products link
+  { href: "/products", label: "Shop Products", icon: ShoppingCart }, 
   { href: "/troubleshoot", label: "AI Troubleshoot", icon: Bot },
   { href: "/issues", label: "Common Issues", icon: Wrench },
 ];
@@ -69,6 +70,7 @@ const adminNavItemsSection: NavItem = {
     { href: "/admin/devices", label: "Devices", icon: HardDrive, adminOnly: true },
     { href: "/admin/users", label: "Users", icon: Users, adminOnly: true },
     { href: "/admin/manage-issues", label: "Manage Issues", icon: ShieldQuestion, adminOnly: true },
+    { href: "/admin/send-notifications", label: "Send Notifications", icon: Send, adminOnly: true },
   ],
 };
 
