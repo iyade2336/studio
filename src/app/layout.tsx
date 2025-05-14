@@ -5,7 +5,8 @@ import './globals.css';
 import { Toaster } from "@/components/ui/toaster";
 import { MainLayout } from '@/components/layout/main-layout';
 import { AdminAuthProvider } from '@/context/admin-auth-context';
-import { UserProvider } from '@/context/user-context'; // Added import
+import { UserProvider } from '@/context/user-context';
+import { CartProvider } from '@/context/cart-context'; // Added import
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,11 +32,13 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <AdminAuthProvider>
-          <UserProvider> {/* Added UserProvider */}
-            <MainLayout>
-              {children}
-            </MainLayout>
-          </UserProvider> {/* Closed UserProvider */}
+          <UserProvider>
+            <CartProvider> {/* Added CartProvider */}
+              <MainLayout>
+                {children}
+              </MainLayout>
+            </CartProvider> {/* Closed CartProvider */}
+          </UserProvider>
         </AdminAuthProvider>
         <Toaster />
       </body>

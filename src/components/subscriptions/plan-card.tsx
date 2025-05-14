@@ -2,14 +2,17 @@
 "use client";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, ShoppingCart } from "lucide-react"; // Added ShoppingCart
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useCart } from "@/context/cart-context"; // Added useCart
+import type { Product } from "@/types"; // Ensure Product type is available
 
 export interface SubscriptionPlan {
   id: string;
   name: string;
-  price: string;
+  price: string; // Display price like "$9.99"
+  priceValue: number; // Actual numeric price for calculations
   priceFrequency: string;
   description: string;
   features: string[];
@@ -23,16 +26,30 @@ interface PlanCardProps {
 
 export function PlanCard({ plan }: PlanCardProps) {
   const { toast } = useToast();
+  const { addToCart } = useCart();
 
   const handleChoosePlan = () => {
-    toast({
-      title: `Plan Selected: ${plan.name}`,
-      description: plan.id === 'enterprise' 
-        ? 'Thank you for your interest! Please contact our sales team to discuss enterprise solutions.' 
-        : `You've selected the ${plan.name} plan. Proceed to checkout to activate your subscription.`,
-    });
-    // In a real application, this would navigate to a checkout page or trigger a subscription flow.
-    console.log("Chose plan:", plan.id, plan.name);
+    if (plan.id === 'enterprise') {
+      toast({
+        title: `Contact Sales: ${plan.name}`,
+        description: 'Thank you for your interest! Please contact our sales team to discuss enterprise solutions.',
+      });
+      // Potentially open a contact form or mailto link
+      console.log("Contact sales for plan:", plan.id, plan.name);
+    } else {
+      // Convert SubscriptionPlan to a Product-like structure for the cart
+      const planAsProduct: Product = {
+        id: `sub_${plan.id}`, // Prefix to distinguish from other products
+        name: `${plan.name} Plan`,
+        description: plan.description,
+        price: plan.priceValue,
+        imageUrl: `https://picsum.photos/seed/${plan.id}plan/600/400`, // Placeholder image
+        category: 'Subscription',
+        dataAiHint: 'subscription service',
+      };
+      addToCart(planAsProduct, 1);
+      // Toast is handled by addToCart
+    }
   };
 
   return (
@@ -69,6 +86,7 @@ export function PlanCard({ plan }: PlanCardProps) {
           size="lg"
           onClick={handleChoosePlan}
         >
+          {plan.id !== 'enterprise' && <ShoppingCart className="mr-2 h-4 w-4" /> }
           {plan.ctaLabel}
         </Button>
       </CardFooter>

@@ -16,6 +16,7 @@ const masterPlans: SubscriptionPlan[] = [
     id: "basic",
     name: "Basic",
     price: "$9.99",
+    priceValue: 9.99,
     priceFrequency: "/month",
     description: "Essential monitoring for personal use.",
     features: [
@@ -25,12 +26,13 @@ const masterPlans: SubscriptionPlan[] = [
       "Email Support",
       "Limited AI Troubleshooting (5 queries/month)",
     ],
-    ctaLabel: "Choose Basic",
+    ctaLabel: "Add to Cart",
   },
   {
     id: "premium",
     name: "Premium",
     price: "$29.99",
+    priceValue: 29.99,
     priceFrequency: "/month",
     description: "Advanced features for serious users and small businesses.",
     features: [
@@ -42,12 +44,13 @@ const masterPlans: SubscriptionPlan[] = [
       "Access to Detailed Reports",
     ],
     isPopular: true,
-    ctaLabel: "Choose Premium",
+    ctaLabel: "Add to Cart",
   },
   {
     id: "enterprise",
     name: "Enterprise",
     price: "Custom",
+    priceValue: 0, // Price not applicable for "Contact Sales"
     priceFrequency: "",
     description: "Tailored solutions for large-scale deployments.",
     features: [
@@ -84,19 +87,27 @@ export default function SubscriptionsPage() {
         if (activePlan.id === "basic") {
           const premium = masterPlans.find(p => p.id === "premium");
           if (premium) upgradeOptions.push(premium);
+           const enterprise = masterPlans.find(p => p.id === "enterprise");
+          if (enterprise) upgradeOptions.push(enterprise);
         } else if (activePlan.id === "premium") {
           const enterprise = masterPlans.find(p => p.id === "enterprise");
           if (enterprise) upgradeOptions.push(enterprise);
         }
-        setDisplayPlans(upgradeOptions);
+        // If enterprise is current, no upgrades to show from masterPlans
+        setDisplayPlans(upgradeOptions.length > 0 ? upgradeOptions : []);
       } else {
         setCurrentPlan(null);
+        // Show all plans if no active plan, or if it's expired, or if user is not logged in.
         setDisplayPlans(masterPlans); 
       }
+    } else {
+      // If currentUser is null (still loading initially perhaps)
+      setIsLoading(true);
+      setDisplayPlans(masterPlans); // Default to show all if user context not ready
     }
   }, [currentUser, getSubscriptionDaysRemaining]);
 
-  if (isLoading) {
+  if (isLoading && !currentUser) { // Adjusted loading condition
     return (
       <div className="space-y-6 md:space-y-8">
         <PageHeader title="Your Subscription" description="Loading subscription details..." />
@@ -116,7 +127,7 @@ export default function SubscriptionsPage() {
         }
       />
 
-      {currentPlan && currentUser?.isLoggedIn ? (
+      {currentPlan && currentUser?.isLoggedIn && timeRemaining !== "Expired" && currentUser.subscription.planName.toLowerCase() !== 'none' ? (
         <Card className="shadow-xl border-primary border-2 mb-8 animate-in fade-in-50 duration-500">
           <CardHeader>
             <div className="flex justify-between items-start">
@@ -174,11 +185,16 @@ export default function SubscriptionsPage() {
               Available Upgrades
             </h2>
           )}
-           {(timeRemaining === "Expired" || (!currentPlan && currentUser?.isLoggedIn)) && (
+           {((timeRemaining === "Expired" && currentUser?.subscription.planName.toLowerCase() !== 'none') || (!currentPlan && currentUser?.isLoggedIn)) && (
              <h2 className="text-xl font-semibold mb-6 text-center text-foreground">
               {timeRemaining === "Expired" && currentUser?.subscription.planName !== "None" ? `Renew Your ${currentUser?.subscription.planName} Plan or Choose Another` : "Available Plans"}
             </h2>
            )}
+            {(!currentUser?.isLoggedIn && displayPlans.length > 0) && (
+              <h2 className="text-xl font-semibold mb-6 text-center text-foreground">
+                Available Plans
+              </h2>
+            )}
 
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 items-stretch">
@@ -188,6 +204,18 @@ export default function SubscriptionsPage() {
           </div>
         </div>
       )}
+
+      {displayPlans.length === 0 && currentPlan && currentPlan.id === 'enterprise' && (
+        <p className="text-center text-muted-foreground pt-4">
+          You are currently on our top-tier Enterprise plan. Contact support for any account inquiries.
+        </p>
+      )}
+      {displayPlans.length === 0 && currentPlan && currentPlan.id !== 'enterprise' && (
+         <p className="text-center text-muted-foreground pt-4">
+            No further upgrades available from the standard list. Contact us for custom solutions if needed.
+        </p>
+      )}
+
 
       {((!currentPlan && !currentUser?.isLoggedIn) || (currentUser?.isLoggedIn && !currentPlan && timeRemaining !== "Expired") ) && (
          <p className="text-center text-sm text-muted-foreground pt-4">

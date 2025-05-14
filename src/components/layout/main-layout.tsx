@@ -23,9 +23,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, FileText } from 'lucide-react';
+import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, ShoppingCart, FileText } from 'lucide-react'; // Added ShoppingCart
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUser } from '@/context/user-context';
+import { useCart } from '@/context/cart-context'; // Added useCart
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 
@@ -44,8 +45,9 @@ export function MainLayout({ children }: MainLayoutProps) {
     markAllNotificationsAsRead,
     clearNotifications,
     getSubscriptionDaysRemaining,
-    addNotification // For testing
+    addNotification
   } = useUser();
+  const { itemCount: cartItemCount, toggleCart } = useCart(); // Get cart item count and toggleCart
 
   const handleTestNotification = () => {
     const types: Array<'system' | 'user' | 'admin' | 'arduino'> = ['system', 'user', 'admin', 'arduino'];
@@ -119,6 +121,17 @@ export function MainLayout({ children }: MainLayoutProps) {
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <Button variant="ghost" size="icon" aria-label="Shopping Cart" className="relative" asChild>
+              <Link href="/cart">
+                <ShoppingCart className="h-5 w-5" />
+                {cartItemCount > 0 && (
+                  <Badge variant="default" className="absolute -top-1 -right-1 h-4 w-4 min-w-[1rem] p-0 flex items-center justify-center text-xs rounded-full bg-accent text-accent-foreground">
+                    {cartItemCount > 9 ? '9+' : cartItemCount}
+                  </Badge>
+                )}
+              </Link>
+            </Button>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
