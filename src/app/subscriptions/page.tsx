@@ -1,3 +1,4 @@
+
 import { PageHeader } from "@/components/shared/page-header";
 import { PlanCard, type SubscriptionPlan } from "@/components/subscriptions/plan-card";
 
@@ -24,7 +25,7 @@ const plans: SubscriptionPlan[] = [
     priceFrequency: "/month",
     description: "Advanced features for serious users and small businesses.",
     features: [
-      "Up to 5 Monitored Devices",
+      "Up to 3 Monitored Devices", // Changed from 5 to 3
       "Real-time Data Updates & History",
       "Advanced Customizable Alerts (SMS, Email)",
       "Priority Email & Chat Support",
@@ -41,7 +42,7 @@ const plans: SubscriptionPlan[] = [
     priceFrequency: "",
     description: "Tailored solutions for large-scale deployments.",
     features: [
-      "Unlimited Devices",
+      "5+ Monitored Devices (Unlimited)", // Clarified to match "5 فما فوق"
       "Custom Integrations",
       "Dedicated Account Manager",
       "SLA Guarantees",
@@ -53,6 +54,8 @@ const plans: SubscriptionPlan[] = [
 ];
 
 export default function SubscriptionsPage() {
+  // In a real application, this data would ideally be fetched from an API.
+  // For this example, we are using the static `plans` array defined above.
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
@@ -70,3 +73,4 @@ export default function SubscriptionsPage() {
     </div>
   );
 }
+
