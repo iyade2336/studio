@@ -44,29 +44,29 @@ const deviceNameMapping: Record<string, string> = {
 };
 
 // Seed initial data for demo purposes
-function seedInitialData() {
-  if (deviceStates.size === 0) {
-    const initialDeviceStatesData: Partial<InternalDeviceState>[] = [
-      { deviceId: "sensor-1", temperature: 22, humidity: 45, waterLeak: false, lastTimestamp: new Date().toISOString() },
-      { deviceId: "sensor-2", temperature: 24, humidity: 60, waterLeak: false, lastTimestamp: new Date().toISOString() },
-      { deviceId: "sensor-3", temperature: 18, humidity: 70, waterLeak: true, lastTimestamp: new Date().toISOString() },
-      { deviceId: "sensor-4", lastTimestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString() }, // Offline example
-    ];
-    initialDeviceStatesData.forEach(state => {
-      if (state.deviceId) {
-        deviceStates.set(state.deviceId, {
-          deviceId: state.deviceId,
-          name: deviceNameMapping[state.deviceId] || state.deviceId,
-          temperature: state.temperature,
-          humidity: state.humidity,
-          waterLeak: state.waterLeak,
-          lastTimestamp: state.lastTimestamp || new Date().toISOString(),
-        });
-      }
-    });
-  }
-}
-seedInitialData(); // Call once when the module loads
+// function seedInitialData() {
+//   if (deviceStates.size === 0) {
+//     const initialDeviceStatesData: Partial<InternalDeviceState>[] = [
+//       { deviceId: "sensor-1", temperature: 22, humidity: 45, waterLeak: false, lastTimestamp: new Date().toISOString() },
+//       { deviceId: "sensor-2", temperature: 24, humidity: 60, waterLeak: false, lastTimestamp: new Date().toISOString() },
+//       { deviceId: "sensor-3", temperature: 18, humidity: 70, waterLeak: true, lastTimestamp: new Date().toISOString() },
+//       { deviceId: "sensor-4", lastTimestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString() }, // Offline example
+//     ];
+//     initialDeviceStatesData.forEach(state => {
+//       if (state.deviceId) {
+//         deviceStates.set(state.deviceId, {
+//           deviceId: state.deviceId,
+//           name: deviceNameMapping[state.deviceId] || state.deviceId,
+//           temperature: state.temperature,
+//           humidity: state.humidity,
+//           waterLeak: state.waterLeak,
+//           lastTimestamp: state.lastTimestamp || new Date().toISOString(),
+//         });
+//       }
+//     });
+//   }
+// }
+// seedInitialData(); // Call once when the module loads - REMOVED to allow "No data" state
 
 
 export async function POST(request: Request) {
