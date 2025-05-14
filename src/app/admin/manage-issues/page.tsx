@@ -41,7 +41,7 @@ const initialMockIssues: Issue[] = [
     id: "2",
     title: "Inaccurate Temperature",
     description: "Temperature values are consistently off.",
-    imageUrl: "httpsum.photos/seed/temp/80/60",
+    imageUrl: "https://picsum.photos/seed/temp/80/60", // Corrected URL
     potentialCauses: ["Sensor miscalibration", "Sensor placement issue"],
     solutions: ["Recalibrate sensor.", "Relocate sensor."],
     reportedDate: "2023-11-15T14:30:00Z",
@@ -50,7 +50,7 @@ const initialMockIssues: Issue[] = [
     id: "3",
     title: "Water Leak False Alarm",
     description: "System triggers water leak alert without actual leak.",
-    imageUrl: "httpsum.photos/seed/water/80/60",
+    imageUrl: "https://picsum.photos/seed/water/80/60", // Corrected URL
     potentialCauses: ["High sensor sensitivity", "Condensation"],
     solutions: ["Adjust sensitivity.", "Clean sensor."],
     reportedDate: "2023-12-05T09:15:00Z",
