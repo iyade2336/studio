@@ -1,68 +1,79 @@
+
 "use client";
 import { useState, useEffect } from "react";
-import { SensorCard, type SensorData } from "./sensor-card";
+import { SensorCard, type SensorData as DisplaySensorData } from "./sensor-card"; // Renamed to avoid conflict
 import { Button } from "@/components/ui/button";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { StoredSensorData } from "@/app/api/sensor-data/route"; // Import type from API
+import { useUser } from "@/context/user-context";
 
-const initialSensors: SensorData[] = [
-  { id: "sensor-1", name: "Living Room Monitor", temperature: 22, humidity: 45, waterLeak: false, status: "ok", lastUpdated: new Date().toLocaleTimeString() },
-  { id: "sensor-2", name: "Kitchen Monitor", temperature: 24, humidity: 60, waterLeak: false, status: "ok", lastUpdated: new Date().toLocaleTimeString() },
-  { id: "sensor-3", name: "Basement Monitor", temperature: 18, humidity: 70, waterLeak: true, status: "danger", lastUpdated: new Date().toLocaleTimeString() },
-  { id: "sensor-4", name: "Garage Monitor", status: "offline", lastUpdated: new Date(Date.now() - 1000 * 60 * 15).toLocaleTimeString() },
-];
+// Helper function to derive status
+const deriveStatus = (data: StoredSensorData): DisplaySensorData["status"] => {
+  if (data.waterLeak) return "danger";
+  if (data.temperature !== undefined && (data.temperature > 35 || data.temperature < 5)) return "warning";
+  if (data.humidity !== undefined && (data.humidity > 80 || data.humidity < 20)) return "warning";
+  return "ok";
+};
+
 
 export function RealtimeDataGrid() {
-  const [sensors, setSensors] = useState<SensorData[]>([]);
+  const [sensors, setSensors] = useState<DisplaySensorData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const { currentUser } = useUser();
 
-  const fetchData = () => {
-    setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      // Simulate data changes
-      const updatedSensors = initialSensors.map(sensor => {
-        if (sensor.status === "offline") return {...sensor, lastUpdated: new Date(Date.now() - 1000 * 60 * Math.random()*30).toLocaleTimeString() };
-        
-        let newTemp = sensor.temperature !== undefined ? sensor.temperature + (Math.random() - 0.5) * 2 : undefined;
-        if (newTemp !== undefined) newTemp = parseFloat(newTemp.toFixed(1));
-        
-        let newHumidity = sensor.humidity !== undefined ? sensor.humidity + (Math.random() - 0.5) * 5 : undefined;
-        if (newHumidity !== undefined) newHumidity = Math.max(0, Math.min(100, parseFloat(newHumidity.toFixed(0))));
-
-        let newStatus = sensor.status;
-        if(sensor.id === 'sensor-3' && Math.random() < 0.1) { // occasionally fix basement leak
-            newStatus = 'ok';
-            sensor.waterLeak = false;
-        } else if(sensor.id === 'sensor-3') {
-            newStatus = 'danger';
-            sensor.waterLeak = true;
-        } else if (newTemp !== undefined && (newTemp > 30 || newTemp < 10)) {
-            newStatus = 'warning';
-        } else if (newHumidity !== undefined && (newHumidity > 75 || newHumidity < 20)) {
-            newStatus = 'warning';
-        } else {
-            newStatus = 'ok';
-        }
-
-        return {
-          ...sensor,
-          temperature: newTemp,
-          humidity: newHumidity,
-          status: newStatus as SensorData['status'],
-          lastUpdated: new Date().toLocaleTimeString(),
-        };
-      });
-      setSensors(updatedSensors);
+  const fetchData = async () => {
+    if (!currentUser || !currentUser.isLoggedIn) {
+      setSensors([]);
       setLoading(false);
-    }, 1000);
+      setError(null); // Clear error if user logs out
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch('/api/sensor-data');
+      if (!response.ok) {
+        throw new Error(`Failed to fetch sensor data: ${response.statusText}`);
+      }
+      const data: StoredSensorData[] = await response.json();
+      
+      const transformedSensors = data.map(apiData => ({
+        id: apiData.deviceId,
+        name: apiData.deviceId, // Use deviceId as name, or implement a naming scheme
+        temperature: apiData.temperature,
+        humidity: apiData.humidity,
+        waterLeak: apiData.waterLeak,
+        status: deriveStatus(apiData),
+        lastUpdated: apiData.timestamp ? new Date(apiData.timestamp).toLocaleTimeString() : 'N/A',
+      }));
+      
+      setSensors(transformedSensors);
+    } catch (e) {
+      console.error("Error fetching sensor data:", e);
+      setError(e instanceof Error ? e.message : "An unknown error occurred while fetching data.");
+      setSensors([]); // Clear sensors on error
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     fetchData(); // Initial fetch
     const interval = setInterval(fetchData, 15000); // Refresh data every 15 seconds
     return () => clearInterval(interval);
-  }, []);
+  }, [currentUser]); // Refetch when user changes
+
+  if (!currentUser || !currentUser.isLoggedIn) {
+    return (
+      <div className="text-center py-8 text-muted-foreground">
+        <AlertTriangle className="mx-auto h-12 w-12 mb-4 text-yellow-500" />
+        <p className="text-lg font-semibold">Access Denied</p>
+        <p>Please log in to view sensor data.</p>
+      </div>
+    );
+  }
 
   if (loading && sensors.length === 0) {
     return (
@@ -72,6 +83,20 @@ export function RealtimeDataGrid() {
         ))}
       </div>
     );
+  }
+  
+  if (error) {
+    return (
+      <div className="text-center py-8 text-destructive-foreground bg-destructive/20 p-6 rounded-lg">
+        <AlertTriangle className="mx-auto h-10 w-10 mb-3" />
+        <p className="font-semibold">Failed to load sensor data</p>
+        <p className="text-sm">{error}</p>
+        <Button onClick={fetchData} variant="outline" className="mt-4">
+          <RefreshCw className="h-4 w-4 mr-2" />
+          Try Again
+        </Button>
+      </div>
+    )
   }
 
   return (
@@ -83,7 +108,10 @@ export function RealtimeDataGrid() {
         </Button>
       </div>
       {sensors.length === 0 && !loading ? (
-        <p className="text-center text-muted-foreground py-8">No sensor data available.</p>
+         <div className="text-center py-8 text-muted-foreground">
+          <p>No sensor data available at the moment.</p>
+          <p className="text-sm">Ensure your Arduino devices are connected and sending data.</p>
+        </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
           {sensors.map((sensor) => (
