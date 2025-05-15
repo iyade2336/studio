@@ -67,6 +67,7 @@ export interface AdminUser {
 }
 
 const initialMockUsers: AdminUser[] = [
+  { id: "usr_000_demo", firstName: "Demo", lastName: "User", email: "user@example.com", whatsappNumber: "+10000000000", companyName: "Demo Corp", subscription: "Premium", devices: 1, allowedDevices: 3, joinedDate: "2023-01-01", avatarUrl: "https://picsum.photos/seed/demouser/40/40", status: "active", passwordHash: "user", allowBluetoothControlFeatures: true, allowWaterLeakConfigFeatures: true, subscriptionExpiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() },
   { id: "usr_001", firstName: "Alice", lastName: "Wonderland", email: "alice@example.com", whatsappNumber: "+11234567890", companyName: "Wonderland Inc.", subscription: "Premium", devices: 2, allowedDevices: 3, joinedDate: "2023-01-15", avatarUrl: "https://picsum.photos/seed/alice/40/40", status: "active", passwordHash: "password123", allowBluetoothControlFeatures: true, allowWaterLeakConfigFeatures: true, subscriptionExpiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString() },
   { id: "usr_002", firstName: "Bob", lastName: "Builder", email: "bob@example.com", whatsappNumber: "+12345678901", companyName: "Builders Co.", subscription: "Basic", devices: 1, allowedDevices: 1, joinedDate: "2023-03-20", avatarUrl: "https://picsum.photos/seed/bob/40/40", status: "active", passwordHash: "password123", allowBluetoothControlFeatures: false, allowWaterLeakConfigFeatures: false, subscriptionExpiryDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000).toISOString()},
   { id: "usr_003", firstName: "Charlie", lastName: "Brown", email: "charlie@example.com", whatsappNumber: "+13456789012", companyName: "Peanuts LLC", subscription: "None", devices: 0, allowedDevices: 0, joinedDate: "2022-11-01", avatarUrl: "https://picsum.photos/seed/charlie/40/40", status: "pending", passwordHash: "password123", allowBluetoothControlFeatures: false, allowWaterLeakConfigFeatures: false },
@@ -105,7 +106,17 @@ export default function AdminUsersPage() {
   useEffect(() => {
     const storedUsers = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (storedUsers) {
-      setUsers(JSON.parse(storedUsers));
+      // Check if demo user exists, if not, add it and then set state
+      let usersFromStorage: AdminUser[] = JSON.parse(storedUsers);
+      const demoUserExists = usersFromStorage.some(u => u.id === "usr_000_demo");
+      if (!demoUserExists) {
+        const demoUser = initialMockUsers.find(u => u.id === "usr_000_demo");
+        if (demoUser) {
+          usersFromStorage = [demoUser, ...usersFromStorage];
+          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(usersFromStorage));
+        }
+      }
+      setUsers(usersFromStorage);
     } else {
       setUsers(initialMockUsers);
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(initialMockUsers));
@@ -147,42 +158,49 @@ export default function AdminUsersPage() {
     }));
   };
   
-  const handleSaveUser = () => {
-    if (!currentUserData.firstName || !currentUserData.lastName || !currentUserData.email) {
+  const handleSaveUser = (userToSave?: AdminUser) => { // Modified to optionally accept a user directly
+    const dataToSave = userToSave || currentUserData;
+
+    if (!dataToSave.firstName || !dataToSave.lastName || !dataToSave.email) {
       toast({ title: "Error", description: "First Name, Last Name, and Email are required.", variant: "destructive" });
       return;
     }
-     if (!currentUserData.subscription) {
+     if (!dataToSave.subscription) {
       toast({ title: "Error", description: "Subscription plan is required.", variant: "destructive" });
       return;
     }
     
     let updatedUsers;
-    const planDetails = PLAN_DETAILS[currentUserData.subscription];
-    const subscriptionExpiry = currentUserData.subscriptionExpiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    const planDetails = PLAN_DETAILS[dataToSave.subscription];
+    // Ensure expiry date exists, default to 30 days from now if not set or if it's a new user/approval
+    let subscriptionExpiry = dataToSave.subscriptionExpiryDate;
+    if (!subscriptionExpiry && dataToSave.status === 'active') {
+      subscriptionExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    }
 
 
-    if (editingUserId) { 
+    if (editingUserId || (userToSave && users.some(u => u.id === userToSave.id)) ) { 
+      const idToUpdate = editingUserId || userToSave!.id;
       updatedUsers = users.map(user => 
-        user.id === editingUserId 
+        user.id === idToUpdate
         ? { 
             ...user, 
-            ...currentUserData,
-            allowedDevices: currentUserData.allowedDevices ?? planDetails?.maxDevices ?? user.allowedDevices,
-            subscriptionExpiryDate: subscriptionExpiry,
+            ...dataToSave,
+            allowedDevices: dataToSave.allowedDevices ?? planDetails?.maxDevices ?? user.allowedDevices,
+            subscriptionExpiryDate: subscriptionExpiry ?? user.subscriptionExpiryDate, // Keep existing if not changed
           } as AdminUser 
         : user
       );
-      toast({ title: "User Updated", description: `User ${currentUserData.firstName} ${currentUserData.lastName} has been updated.` });
+      toast({ title: "User Updated", description: `User ${dataToSave.firstName} ${dataToSave.lastName} has been updated.` });
     } else { 
       const newUser: AdminUser = {
         id: `usr_${Date.now()}`,
         ...defaultNewAdminCreatedUser, 
-        ...currentUserData,
+        ...dataToSave,
         devices: 0, // New users start with 0 actual devices
-        allowedDevices: currentUserData.allowedDevices ?? planDetails?.maxDevices ?? 0,
-        joinedDate: currentUserData.joinedDate || new Date().toLocaleDateString('en-CA'),
-        avatarUrl: currentUserData.avatarUrl || `https://picsum.photos/seed/${Date.now()}/40/40`,
+        allowedDevices: dataToSave.allowedDevices ?? planDetails?.maxDevices ?? 0,
+        joinedDate: dataToSave.joinedDate || new Date().toLocaleDateString('en-CA'),
+        avatarUrl: dataToSave.avatarUrl || `https://picsum.photos/seed/${Date.now()}/40/40`,
         subscriptionExpiryDate: subscriptionExpiry,
       } as AdminUser;
       updatedUsers = [newUser, ...users];
@@ -195,6 +213,10 @@ export default function AdminUsersPage() {
   };
   
   const handleDeleteUser = (userId: string) => {
+    if (userId === "usr_000_demo") {
+      toast({ title: "Action Denied", description: "The demo user cannot be deleted.", variant: "destructive" });
+      return;
+    }
     const updatedUsers = users.filter(user => user.id !== userId);
     saveUsersToLocalStorage(updatedUsers);
     toast({ title: "User Deleted", description: "The user has been removed.", variant: "destructive" });
@@ -211,15 +233,8 @@ export default function AdminUsersPage() {
       toast({ title: "Error", description: "User and message are required.", variant: "destructive" });
       return;
     }
-    // This is a conceptual simulation. In a real app, this would send a notification
-    // to the specific user via a backend service (e.g., WebSockets, push notifications).
-    // For this demo, we'll use the shared UserContext's addNotification if the admin
-    // is also the current user viewing (which isn't typical but works for demo).
-    // A more robust solution would be a backend that stores notifications per user.
     
     console.log(`Admin sending notification to ${notificationTargetUser.email}: ${notificationMessage}`);
-    // Simulate adding to a global notification pool that the target user might see
-    // This is a simplified approach for demo.
     userContext.addNotification(`Admin message for ${notificationTargetUser.firstName}: ${notificationMessage}`, 'admin');
 
     toast({ title: "Notification Sent", description: `Message sent to ${notificationTargetUser.firstName} ${notificationTargetUser.lastName}.` });
@@ -319,7 +334,7 @@ export default function AdminUsersPage() {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                      <DropdownMenuItem onClick={() => handleOpenUserModal(user)}>
+                      <DropdownMenuItem onClick={() => handleOpenUserModal(user)} disabled={user.id === "usr_000_demo" && editingUserId !== "usr_000_demo"}>
                         <Edit3 className="mr-2 h-4 w-4" /> Edit User
                       </DropdownMenuItem>
                        <DropdownMenuItem onClick={() => handleOpenNotificationModal(user)}>
@@ -329,12 +344,14 @@ export default function AdminUsersPage() {
                         <>
                           <DropdownMenuItem onClick={() => {
                             const defaultPlanOnApprove = "Basic" as keyof typeof PLAN_DETAILS;
+                            const planToSet = user.subscription === 'None' || !user.subscription ? defaultPlanOnApprove : user.subscription;
+                             const expiry = user.subscriptionExpiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
                             handleSaveUser({ 
                               ...user, 
                               status: 'active', 
-                              subscription: user.subscription === 'None' ? defaultPlanOnApprove : user.subscription,
-                              allowedDevices: PLAN_DETAILS[user.subscription === 'None' ? defaultPlanOnApprove : user.subscription]?.maxDevices ?? 1,
-                              subscriptionExpiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default 30 days
+                              subscription: planToSet,
+                              allowedDevices: PLAN_DETAILS[planToSet]?.maxDevices ?? 1,
+                              subscriptionExpiryDate: expiry,
                             })
                           }}>
                             <CheckCircle className="mr-2 h-4 w-4 text-green-500" /> Approve
@@ -345,7 +362,7 @@ export default function AdminUsersPage() {
                         </>
                       )}
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => handleDeleteUser(user.id)} className="text-destructive hover:!bg-destructive/10 hover:!text-destructive">
+                      <DropdownMenuItem onClick={() => handleDeleteUser(user.id)} className="text-destructive hover:!bg-destructive/10 hover:!text-destructive" disabled={user.id === "usr_000_demo"}>
                         <Trash2 className="mr-2 h-4 w-4" /> Delete User
                       </DropdownMenuItem>
                     </DropdownMenuContent>
@@ -401,11 +418,16 @@ export default function AdminUsersPage() {
                 placeholder={editingUserId ? "Leave blank to keep current" : "Set password"}
                 onChange={(e) => setCurrentUserData({ ...currentUserData, passwordHash: e.target.value })} 
                 className="col-span-3" 
+                disabled={editingUserId === "usr_000_demo"} // Disable password change for demo user
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status" className="text-right">Status</Label>
-              <Select value={currentUserData.status || "pending"} onValueChange={(value) => setCurrentUserData({ ...currentUserData, status: value as AdminUser['status'] })}>
+              <Select 
+                value={currentUserData.status || "pending"} 
+                onValueChange={(value) => setCurrentUserData({ ...currentUserData, status: value as AdminUser['status'] })}
+                disabled={editingUserId === "usr_000_demo" && currentUserData.status === "active"} // Prevent changing demo user from active
+              >
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
                   {statusOptions.map(option => <SelectItem key={option} value={option}>{option.charAt(0).toUpperCase() + option.slice(1)}</SelectItem>)}
@@ -464,7 +486,7 @@ export default function AdminUsersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsUserModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveUser}>Save User</Button>
+            <Button onClick={() => handleSaveUser()} disabled={editingUserId === "usr_000_demo" && currentUserData.status !== "active"}>Save User</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -501,3 +523,4 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
