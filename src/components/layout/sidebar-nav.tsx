@@ -14,8 +14,8 @@ import {
   Settings,
   Bot,
   LogOut,
-  ShieldCheck,
-  Home, // Added for landing page
+  // ShieldCheck, // No longer needed for separate admin login link
+  Home,
   type LucideIcon,
 } from "lucide-react";
 import {
@@ -31,7 +31,7 @@ import { Logo } from "@/components/icons/logo";
 import { Separator } from "@/components/ui/separator";
 import React from "react";
 import { useAdminAuth } from "@/context/admin-auth-context";
-import { useUser } from "@/context/user-context"; 
+import { useUser } from "@/context/user-context";
 import { Button } from "../ui/button";
 
 
@@ -41,11 +41,11 @@ interface NavItem {
   icon: LucideIcon;
   matchExact?: boolean;
   subItems?: NavItem[];
-  adminOnly?: boolean; 
-  userOnly?: boolean; 
-  guestOnly?: boolean; 
-  action?: () => void; 
-  isPublic?: boolean; // New flag for public pages like landing page
+  adminOnly?: boolean;
+  userOnly?: boolean;
+  guestOnly?: boolean;
+  action?: () => void;
+  isPublic?: boolean;
 }
 
 const publicNavItems: NavItem[] = [
@@ -53,7 +53,7 @@ const publicNavItems: NavItem[] = [
 ];
 
 const commonNavItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, userOnly: true }, // Changed href
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, userOnly: true },
   { href: "/troubleshoot", label: "AI Troubleshoot", icon: Bot, userOnly: true },
   { href: "/issues", label: "Common Issues", icon: Wrench, userOnly: true },
 ];
@@ -66,7 +66,7 @@ const adminNavItemsSection: NavItem = {
   href: "/admin",
   label: "Admin Panel",
   icon: Settings,
-  adminOnly: true, 
+  adminOnly: true,
   subItems: [
     { href: "/admin", label: "Overview", icon: LayoutDashboard, matchExact: true, adminOnly: true },
     { href: "/admin/devices", label: "Devices", icon: HardDrive, adminOnly: true },
@@ -76,19 +76,18 @@ const adminNavItemsSection: NavItem = {
 };
 
 const authNavItems: NavItem[] = [
-  { href: "/auth/login", label: "User Login", icon: LogIn, guestOnly: true },
-  { href: "/auth/register", label: "User Register", icon: UserPlus, guestOnly: true },
-  { href: "/auth/admin-login", label: "Admin Login", icon: ShieldCheck, guestOnly: true }, 
+  { href: "/auth/login", label: "Login", icon: LogIn, guestOnly: true }, // Serves for both user and admin
+  { href: "/auth/register", label: "Register", icon: UserPlus, guestOnly: true },
+  // Removed: { href: "/auth/admin-login", label: "Admin Login", icon: ShieldCheck, guestOnly: true },
 ];
 
 
 export function SidebarNav() {
   const pathname = usePathname();
   const { isAdmin, logout: adminLogout, isLoading: isAdminAuthLoading } = useAdminAuth();
-  const { currentUser, logoutUser: regularUserLogout } = useUser(); 
+  const { currentUser, logoutUser: regularUserLogout } = useUser();
 
   const renderNavItem = (item: NavItem, isSubItem = false) => {
-    // Conditional rendering logic
     if (item.adminOnly && !isAdmin) return null;
     if (item.userOnly && (!currentUser || !currentUser.isLoggedIn || isAdmin)) return null;
     if (item.guestOnly && (isAdmin || (currentUser && currentUser.isLoggedIn))) return null;
@@ -96,15 +95,15 @@ export function SidebarNav() {
 
     const isActive = item.matchExact ? pathname === item.href : pathname.startsWith(item.href);
     const ButtonComponent = isSubItem ? SidebarMenuSubButton : SidebarMenuButton;
-    
+
     const navItemContent = (
       <>
         <item.icon className="mr-2 h-5 w-5" />
         <span className="truncate">{item.label}</span>
       </>
     );
-    
-    const effectiveHref = (item.adminOnly && !isAdmin && !item.href.startsWith('/auth/admin-login')) ? "/auth/admin-login" : item.href;
+
+    const effectiveHref = (item.adminOnly && !isAdmin && !item.href.startsWith('/auth/login')) ? "/auth/login" : item.href; // Ensure admin trying to access admin pages without login is redirected to general login
 
     if (item.action) {
       return (
@@ -126,7 +125,7 @@ export function SidebarNav() {
           <ButtonComponent
             className={cn(isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", "w-full justify-start")}
             isActive={isActive}
-            asChild={!isSubItem} 
+            asChild={!isSubItem}
             tooltip={item.label}
           >
            {!isSubItem ? <a>{navItemContent}</a> : navItemContent}
@@ -161,7 +160,7 @@ export function SidebarNav() {
         {isAdmin && (
           renderNavItem({ href: "#", label: "Admin Logout", icon: LogOut, action: adminLogout })
         )}
-        {currentUser && currentUser.isLoggedIn && !isAdmin && ( 
+        {currentUser && currentUser.isLoggedIn && !isAdmin && (
           renderNavItem({ href: "#", label: "User Logout", icon: LogOut, action: regularUserLogout })
         )}
       </SidebarMenu>

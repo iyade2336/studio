@@ -39,7 +39,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
       setIsAdmin(true);
       try {
         localStorage.setItem('isAdminAuthenticated', 'true');
-      } catch (error) {
+      } catch (error)
+      {
         console.error("Could not access localStorage:", error);
       }
       return true;
@@ -54,7 +55,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Could not access localStorage:", error);
     }
-    router.push('/auth/admin-login');
+    router.push('/auth/login'); // Changed from /auth/admin-login
   }, [router]);
 
   return (

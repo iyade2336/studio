@@ -17,21 +17,27 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
-import { useUser } from "@/context/user-context"; 
-import { useRouter } from "next/navigation"; 
-import { useToast } from "@/hooks/use-toast"; 
-import type { AdminUser } from "@/app/admin/users/page"; // Assuming AdminUser type
+import { useUser } from "@/context/user-context";
+import { useRouter } from "next/navigation";
+import { useToast } from "@/hooks/use-toast";
+import type { AdminUser } from "@/app/admin/users/page";
+import { useAdminAuth } from '@/context/admin-auth-context';
+
+const ADMIN_USERNAME = "admin";
+const ADMIN_PASSWORD = "admin";
+const ADMIN_TOKEN = "iyade";
+const LOCAL_STORAGE_KEY_USERS = "iot-guardian-users";
 
 const formSchema = z.object({
-  email: z.string().email({ message: "Invalid email address." }),
+  email: z.string().min(1, { message: "Username or Email is required." }),
   password: z.string().min(1, { message: "Password is required." }),
+  adminToken: z.string().optional(),
 });
-
-const LOCAL_STORAGE_KEY_USERS = "iot-guardian-users";
 
 export function LoginForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { loginUser } = useUser();
+  const adminAuth = useAdminAuth();
   const router = useRouter();
   const { toast } = useToast();
 
@@ -40,77 +46,93 @@ export function LoginForm() {
     defaultValues: {
       email: "",
       password: "",
+      adminToken: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    // Simulate API call & authentication
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API call
 
-    try {
-      const usersString = localStorage.getItem(LOCAL_STORAGE_KEY_USERS);
-      const users: AdminUser[] = usersString ? JSON.parse(usersString) : [];
-      
-      const foundUser = users.find(user => user.email === values.email);
-
-      if (!foundUser) {
-        toast({ title: "Login Failed", description: "User not found.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
-
-      // INSECURE: Password check for demo. In a real app, backend handles this with hashing.
-      if (foundUser.passwordHash !== values.password) {
-        toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
-
-      if (foundUser.status === 'pending') {
-        toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default" });
-        setIsLoading(false);
-        return;
-      }
-
-      if (foundUser.status === 'rejected') {
-        toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive" });
-        setIsLoading(false);
-        return;
-      }
-      
-      if (foundUser.status === 'active') {
-        // Adapt AdminUser to User for context.
-        // The User context might expect a different structure.
-        // For now, let's pass the relevant fields.
-        loginUser({
-          id: foundUser.id,
-          name: `${foundUser.firstName} ${foundUser.lastName}`, // Combine first and last name
-          email: foundUser.email,
-          isLoggedIn: true,
-          subscription: {
-            planName: foundUser.subscription,
-            // Expiry date would need to be set by admin upon approval/plan assignment
-            expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Placeholder
-          },
-          // Add other fields from AdminUser if needed by User context
-          firstName: foundUser.firstName,
-          lastName: foundUser.lastName,
-          companyName: foundUser.companyName,
-          whatsappNumber: foundUser.whatsappNumber,
-
-        });
-        toast({ title: "Login Successful", description: "Welcome back!" });
-        router.push('/'); // Redirect to dashboard
+    if (values.email === ADMIN_USERNAME && values.password === ADMIN_PASSWORD) {
+      // Admin login attempt
+      if (values.adminToken === ADMIN_TOKEN) {
+        const adminLoginSuccess = adminAuth.login(values.email, values.password);
+        if (adminLoginSuccess) {
+          toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
+          router.push('/admin');
+          // No need to setIsLoading(false) as router.push will unmount
+        } else {
+          // This case should ideally not happen if credentials are correct in context
+          toast({ title: "Admin Login Failed", description: "An unexpected error occurred with admin authentication.", variant: "destructive" });
+          setIsLoading(false);
+        }
       } else {
-        toast({ title: "Login Failed", description: "Account status unknown.", variant: "destructive" });
+        toast({ title: "Admin Login Failed", description: "Invalid or missing admin token for admin user.", variant: "destructive" });
         setIsLoading(false);
       }
+    } else {
+      // Regular user login attempt
+      try {
+        const usersString = localStorage.getItem(LOCAL_STORAGE_KEY_USERS);
+        const users: AdminUser[] = usersString ? JSON.parse(usersString) : [];
+        const foundUser = users.find(user => user.email === values.email);
 
-    } catch (error) {
-      console.error("Login error:", error);
-      toast({ title: "Login Failed", description: "An unexpected error occurred.", variant: "destructive" });
-      setIsLoading(false);
+        if (!foundUser) {
+          toast({ title: "Login Failed", description: "User not found.", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+
+        if (foundUser.passwordHash !== values.password) {
+          toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+
+        if (foundUser.status === 'pending') {
+          toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default" });
+          setIsLoading(false);
+          return;
+        }
+
+        if (foundUser.status === 'rejected') {
+          toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive" });
+          setIsLoading(false);
+          return;
+        }
+
+        if (foundUser.status === 'active') {
+          loginUser({
+            id: foundUser.id,
+            name: `${foundUser.firstName} ${foundUser.lastName}`,
+            email: foundUser.email,
+            isLoggedIn: true,
+            subscription: {
+              planName: foundUser.subscription,
+              expiryDate: foundUser.subscriptionExpiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+              maxDevices: foundUser.allowedDevices,
+              canControlDevice: foundUser.allowBluetoothControlFeatures, // Assuming this is a direct mapping for now
+              canExportCsv: true, // Example, adjust based on plan logic if needed
+              hasAutoShutdownFeature: foundUser.allowWaterLeakConfigFeatures, // Assuming this is a direct mapping
+              canAccessAiTroubleshooter: foundUser.subscription === 'Premium' || foundUser.subscription === 'Enterprise', // Example logic
+            },
+            firstName: foundUser.firstName,
+            lastName: foundUser.lastName,
+            companyName: foundUser.companyName,
+            whatsappNumber: foundUser.whatsappNumber,
+          });
+          toast({ title: "Login Successful", description: "Welcome back!" });
+          router.push('/');
+        } else {
+          toast({ title: "Login Failed", description: "Account status unknown or inactive.", variant: "destructive" });
+          setIsLoading(false);
+        }
+      } catch (error) {
+        console.error("User login error:", error);
+        toast({ title: "Login Failed", description: "An unexpected error occurred.", variant: "destructive" });
+        setIsLoading(false);
+      }
     }
   }
 
@@ -118,7 +140,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Login to IoT Guardian</CardTitle>
-        <CardDescription>Enter your credentials to access your dashboard.</CardDescription>
+        <CardDescription>Enter your credentials to access your dashboard or admin panel.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -128,9 +150,9 @@ export function LoginForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>Username / Email</FormLabel>
                   <FormControl>
-                    <Input type="email" placeholder="you@example.com" {...field} />
+                    <Input placeholder="user@example.com or admin" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -146,6 +168,20 @@ export function LoginForm() {
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>
                   <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="adminToken"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Admin Token (Optional)</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="Enter if logging in as admin" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                  <FormDescription>Only required if username is 'admin'.</FormDescription>
                 </FormItem>
               )}
             />
