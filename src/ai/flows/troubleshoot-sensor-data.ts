@@ -25,10 +25,10 @@ export type TroubleshootSensorDataInput = z.infer<typeof TroubleshootSensorDataI
 const TroubleshootSensorDataOutputSchema = z.object({
   problemIdentification: z
     .string()
-    .describe('The identified problem based on the sensor data.'),
+    .describe('A clear, narrative paragraph explaining the identified problem based on the sensor data. This should be written in a conversational tone, as if advising a user directly.'),
   suggestedSolutions: z
     .string()
-    .describe('Suggested solutions to resolve the identified problem.'),
+    .describe('Detailed, step-by-step solutions presented in narrative paragraphs to resolve the identified problem. Write this as if guiding a user through the steps in a support message. Use full sentences.'),
 });
 export type TroubleshootSensorDataOutput = z.infer<typeof TroubleshootSensorDataOutputSchema>;
 
@@ -42,9 +42,12 @@ const prompt = ai.definePrompt({
   name: 'troubleshootSensorDataPrompt',
   input: {schema: TroubleshootSensorDataInputSchema},
   output: {schema: TroubleshootSensorDataOutputSchema},
-  prompt: `You are an expert IoT device troubleshooter.
+  prompt: `You are an expert IoT device troubleshooter. Please analyze the following sensor data and provide a detailed, conversational explanation of the most likely problem and practical, step-by-step solutions.
 
-You will use the sensor data to identify potential problems and suggest solutions.
+Structure your response in clear paragraphs, suitable for direct display to a user seeking help.
+For the 'problemIdentification' field, provide a narrative explanation.
+For the 'suggestedSolutions' field, provide guidance in paragraph form, like a helpful support message.
+Avoid using markdown bullet points or numbered lists directly in your output fields. Write as if you are directly advising the user.
 
 Sensor Data:
 Temperature: {{{temperature}}}°C
@@ -55,7 +58,7 @@ Water Leakage: {{#if waterLeakage}}Detected{{else}}Not Detected{{/if}}
 Additional Context: {{{additionalContext}}}
 {{/if}}
 
-Based on this data, identify the most likely problem and suggest solutions. Be specific and practical.
+Based on this data, explain the problem and the solutions clearly and conversationally.
 `,
 });
 

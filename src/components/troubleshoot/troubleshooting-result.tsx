@@ -42,14 +42,14 @@ export function TroubleshootingResult({ result, error }: TroubleshootingResultPr
       <CardContent className="space-y-6">
         <div>
           <h3 className="text-lg font-semibold mb-2 text-foreground">Problem Identification:</h3>
-          <p className="text-muted-foreground bg-muted/50 p-3 rounded-md">{result.problemIdentification}</p>
+          <div className="text-muted-foreground bg-muted/50 p-3 rounded-md whitespace-pre-line">
+            {result.problemIdentification}
+          </div>
         </div>
         <div>
           <h3 className="text-lg font-semibold mb-2 text-foreground">Suggested Solutions:</h3>
-          <div className="text-muted-foreground bg-muted/50 p-3 rounded-md whitespace-pre-wrap">
-            {result.suggestedSolutions.split('\n').map((line, index) => (
-              <p key={index} className={line.startsWith('- ') ? 'ml-4' : ''}>{line}</p>
-            ))}
+          <div className="text-muted-foreground bg-muted/50 p-3 rounded-md whitespace-pre-line">
+            {result.suggestedSolutions}
           </div>
         </div>
          <p className="text-xs text-muted-foreground pt-4 border-t">

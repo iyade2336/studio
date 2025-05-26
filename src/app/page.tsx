@@ -1,118 +1,133 @@
 
-"use client"; // Add this to make it a Client Component
-
-import { RealtimeDataGrid } from "@/components/dashboard/realtime-data-grid";
-import { PageHeader } from "@/components/shared/page-header";
+"use client";
 import { Button } from "@/components/ui/button";
-import Link from "next/link";
-import { AlertTriangle, Info, Wrench, CreditCard, MonitorSmartphone } from "lucide-react"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useUser } from "@/context/user-context"; // Import useUser hook
+import { useUser } from "@/context/user-context";
+import { ArrowRight, CheckCircle, Cpu, ShieldCheck, Wifi, Server, AlertTriangle, BarChartBig } from "lucide-react";
+import Image from "next/image";
+import Link from "next/link";
 
-export default function DashboardPage() {
-  const { currentUser } = useUser(); // Get currentUser from context
-
-  const userName = currentUser?.isLoggedIn ? currentUser.name : "Guest";
-  const subscriptionPlan = currentUser?.isLoggedIn ? currentUser.subscription.planName : "No Plan";
-  const alertsCount = currentUser?.isLoggedIn ? (currentUser as any).alerts || 0 : 0; // Assuming alerts might be on currentUser
+export default function LandingPage() {
+  const { currentUser } = useUser();
 
   return (
-    <div className="space-y-6 md:space-y-8">
-      <PageHeader
-        title={`Welcome, ${userName}!`}
-        description={currentUser?.isLoggedIn ? `You are currently on the ${subscriptionPlan}.` : "Please log in or register to manage your devices."}
-      />
+    <div className="flex flex-col min-h-screen bg-background">
+      {/* Hero Section */}
+      <section className="py-20 md:py-32 bg-gradient-to-br from-background via-primary/5 to-accent/5">
+        <div className="container mx-auto px-4 text-center">
+          <h1 className="text-4xl md:text-6xl font-bold text-primary mb-6">
+            Welcome to IoT Guardian
+          </h1>
+          <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-3xl mx-auto">
+            Secure, Monitor, and Manage your Internet of Things devices with unparalleled ease and intelligence.
+            IoT Guardian provides robust solutions for real-time tracking, AI-powered troubleshooting, and comprehensive device management, ensuring your IoT ecosystem is always protected and optimized.
+          </p>
+          <Button size="lg" asChild className="shadow-lg hover:scale-105 transition-transform">
+            <Link href={currentUser?.isLoggedIn ? "/dashboard" : "/auth/register"}>
+              Get Started Now <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
+      </section>
 
-      {currentUser?.isLoggedIn && alertsCount > 0 && (
-        <Card className="bg-yellow-50 border-yellow-400 dark:bg-yellow-900/30 dark:border-yellow-600">
-          <CardHeader className="pb-2">
-            <div className="flex items-center">
-              <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mr-3" />
-              <CardTitle className="text-yellow-700 dark:text-yellow-300">
-                {alertsCount} Active Alert{alertsCount > 1 ? 's' : ''}
-              </CardTitle>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <p className="text-yellow-600 dark:text-yellow-400">
-              Some of your devices require attention. Please check their status below.
-            </p>
-            <div className="mt-3">
-              <Button variant="outline" size="sm" asChild>
-                {/* TODO: Create an /alerts page or link to relevant section */}
-                <Link href="/#alerts-section"> 
-                  <span className="flex items-center">View Alerts</span>
-                </Link>
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Real-time Sensor Data</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <RealtimeDataGrid />
-        </CardContent>
-      </Card>
+      {/* Services Section */}
+      <section id="services" className="py-16">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center text-primary mb-16">Our Core Services</h2>
+          <div className="grid md:grid-cols-3 gap-8">
+            <Card className="shadow-lg hover:shadow-xl transition-shadow transform hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex justify-center mb-4 text-accent">
+                  <Cpu className="h-16 w-16" />
+                </div>
+                <CardTitle className="text-center text-xl">Real-Time Monitoring</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-center text-sm">
+                  Keep a constant eye on your device status, sensor data (temperature, humidity, water leaks), and operational health with our intuitive dashboard.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-lg hover:shadow-xl transition-shadow transform hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex justify-center mb-4 text-accent">
+                  <ShieldCheck className="h-16 w-16" />
+                </div>
+                <CardTitle className="text-center text-xl">AI-Powered Troubleshooting</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-center text-sm">
+                  Leverage advanced AI to diagnose issues, predict potential failures, and get actionable, step-by-step solutions instantly.
+                </p>
+              </CardContent>
+            </Card>
+            <Card className="shadow-lg hover:shadow-xl transition-shadow transform hover:-translate-y-1">
+              <CardHeader>
+                <div className="flex justify-center mb-4 text-accent">
+                  <Wifi className="h-16 w-16" />
+                </div>
+                <CardTitle className="text-center text-xl">Remote Device Management</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground text-center text-sm">
+                  Control your devices (ON/OFF commands), manage configurations, and receive critical alerts from anywhere in the world.
+                </p>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </section>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <Info className="mr-2 h-5 w-5 text-accent" />
-              Quick Actions
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href="/troubleshoot">
-                <span className="flex items-center w-full">
-                  <MonitorSmartphone className="mr-2 h-4 w-4" />
-                  AI Troubleshooter
-                </span>
-              </Link>
-            </Button>
-            <Button variant="outline" className="w-full justify-start" asChild>
-              <Link href="/issues">
-                 <span className="flex items-center w-full">
-                   <Wrench className="mr-2 h-4 w-4" />
-                   View Common Issues
-                 </span>
-              </Link>
-            </Button>
-             <Button variant="secondary" className="w-full justify-start" asChild>
-              <Link href="/subscriptions">
-                 <span className="flex items-center w-full">
-                   <CreditCard className="mr-2 h-4 w-4" />
-                   Manage Subscription
-                 </span>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-         <Card className="bg-primary/10 border-primary/30 hover:shadow-lg transition-shadow">
-          <CardHeader>
-            <CardTitle className="flex items-center text-primary">
-              Need help?
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-foreground mb-4">
-              If you're experiencing issues or have questions, our AI assistant can help, or you can browse common solutions.
-            </p>
-            <Button className="w-full" asChild>
-              <Link href="/troubleshoot">
-                 <span className="flex items-center justify-center w-full">
-                    Ask AI Assistant
-                 </span>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
+      {/* Features Section */}
+      <section id="features" className="py-16 bg-secondary/30">
+        <div className="container mx-auto px-4">
+          <h2 className="text-3xl font-bold text-center text-primary mb-16">Why Choose IoT Guardian?</h2>
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            <div className="relative aspect-video">
+              <Image 
+                src="https://placehold.co/600x338.png" 
+                alt="IoT Security and Management" 
+                layout="fill" 
+                objectFit="cover" 
+                className="rounded-lg shadow-xl"
+                data-ai-hint="iot dashboard security" 
+              />
+            </div>
+            <ul className="space-y-6">
+              {[
+                { icon: Server, text: "Seamless Integration: Easily connect your Arduino, ESP32, and other IoT devices." },
+                { icon: BarChartBig, text: "Scalable Architecture: From personal projects to enterprise-level deployments with flexible subscription plans." },
+                { icon: ShieldCheck, text: "Advanced Security: Robust protocols to protect your data and devices, with admin-controlled access." },
+                { icon: AlertTriangle, text: "Customizable Alerts: Get notified via in-app notifications for critical events like water leaks or high temperatures." },
+                { icon: Cpu, text: "Intelligent Device Control: Premium features include remote ON/OFF and automated shutdown capabilities." }
+              ].map(feature => (
+                <li key={feature.text} className="flex items-start">
+                  <feature.icon className="h-7 w-7 text-green-500 mr-4 shrink-0 mt-1" />
+                  <div>
+                    <h3 className="font-semibold text-foreground">{feature.text.split(':')[0]}</h3>
+                    <p className="text-muted-foreground text-sm">{feature.text.split(':')[1]}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      {/* Call to Action Section */}
+      <section className="py-20 bg-gradient-to-tr from-primary to-accent">
+        <div className="container mx-auto px-4 text-center">
+          <h2 className="text-3xl font-bold mb-6 text-primary-foreground">Ready to Secure Your IoT Ecosystem?</h2>
+          <p className="text-lg text-primary-foreground/90 mb-10 max-w-xl mx-auto">
+            Join IoT Guardian today and experience the future of device management. Protect, monitor, and control with confidence.
+          </p>
+          <Button size="lg" variant="secondary" asChild className="text-primary hover:bg-background/90 hover:text-primary shadow-lg hover:scale-105 transition-transform">
+             <Link href={currentUser?.isLoggedIn ? "/dashboard" : "/auth/register"}>
+              Sign Up Now <ArrowRight className="ml-2 h-5 w-5" />
+            </Link>
+          </Button>
+        </div>
+      </section>
     </div>
   );
 }
