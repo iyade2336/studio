@@ -1,10 +1,10 @@
 
 "use client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Thermometer, Droplets, ShieldAlert, Wifi, WifiOff, AlertTriangle, Power, PowerOff } from "lucide-react";
+import { Thermometer, Droplets as HumidityIcon, ShieldAlert, Wifi, WifiOff, AlertTriangle, Power, PowerOff, Waves } from "lucide-react"; // Renamed Droplets to HumidityIcon, added Waves
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useUser } from "@/context/user-context"; // Import useUser
+import { useUser } from "@/context/user-context";
 
 export interface SensorData {
   id: string;
@@ -14,7 +14,7 @@ export interface SensorData {
   waterLeak?: boolean;
   status: "ok" | "warning" | "danger" | "offline";
   lastUpdated?: string;
-  deviceState?: 'ON' | 'OFF'; // For device control
+  deviceState?: 'ON' | 'OFF'; 
 }
 
 interface SensorCardProps {
@@ -23,7 +23,7 @@ interface SensorCardProps {
 }
 
 export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
-  const { currentUser } = useUser(); // Get currentUser from context
+  const { currentUser } = useUser(); 
 
   const getStatusColor = () => {
     switch (sensor.status) {
@@ -80,7 +80,7 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
             {sensor.temperature !== undefined && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center text-sm">
-                  <Thermometer className="h-5 w-5 mr-2 text-accent shrink-0" />
+                  <Thermometer className="h-5 w-5 mr-2 text-blue-500 shrink-0" />
                   <span>Temperature</span>
                 </div>
                 <span className="font-medium">{sensor.temperature}°C</span>
@@ -89,7 +89,7 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
             {sensor.humidity !== undefined && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center text-sm">
-                  <Droplets className="h-5 w-5 mr-2 text-accent shrink-0" />
+                  <HumidityIcon className="h-5 w-5 mr-2 text-teal-500 shrink-0" />
                   <span>Humidity</span>
                 </div>
                 <span className="font-medium">{sensor.humidity}%</span>
@@ -98,7 +98,7 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
             {sensor.waterLeak !== undefined && (
               <div className="flex items-center justify-between">
                 <div className="flex items-center text-sm">
-                  <ShieldAlert className="h-5 w-5 mr-2 text-accent shrink-0" />
+                  <Waves className="h-5 w-5 mr-2 text-red-500 shrink-0" /> 
                   <span>Water Leak</span>
                 </div>
                 <span className={cn("font-medium", sensor.waterLeak ? "text-red-500" : "text-green-500")}>
@@ -109,7 +109,7 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
             {currentUser?.subscription.hasAutoShutdownFeature && (sensor.waterLeak || (sensor.temperature && sensor.temperature > 35)) && (
                  <div className="mt-2 p-2 rounded-md bg-destructive/10 text-destructive text-xs flex items-center">
                     <AlertTriangle className="h-4 w-4 mr-2 shrink-0"/>
-                    <span>Critical! Auto-shutdown active or imminent.</span>
+                    <span>Critical! Auto-shutdown may be active.</span>
                 </div>
             )}
           </div>

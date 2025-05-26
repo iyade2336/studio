@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Search, Edit3, Trash2, CheckCircle, XCircle, Clock, BellPlus, Bluetooth, Droplets } from "lucide-react";
+import { PlusCircle, Search, Edit3, Trash2, CheckCircle, XCircle, Clock, BellPlus, Bluetooth, Droplets, Download, UsersIcon, UserCheck, UserCog } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -31,7 +31,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -44,8 +43,9 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
-import { useUser } from "@/context/user-context"; // For addNotification
+import { useUser } from "@/context/user-context"; 
 import { PLAN_DETAILS } from "@/context/user-context";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export interface AdminUser {
   id: string;
@@ -54,16 +54,16 @@ export interface AdminUser {
   email: string;
   whatsappNumber: string;
   companyName: string;
-  subscription: keyof typeof PLAN_DETAILS; // Ensure this uses keys from PLAN_DETAILS
-  devices: number; // This is current actual connected devices - will be updated by a separate mechanism
-  allowedDevices: number; // Max devices admin sets for this user
-  joinedDate: string; // format YYYY-MM-DD
+  subscription: keyof typeof PLAN_DETAILS; 
+  devices: number; 
+  allowedDevices: number; 
+  joinedDate: string; 
   avatarUrl?: string;
   status: 'pending' | 'active' | 'rejected';
-  passwordHash?: string;
+  passwordHash?: string; 
   allowBluetoothControlFeatures: boolean;
   allowWaterLeakConfigFeatures: boolean;
-  subscriptionExpiryDate?: string; // ISO String
+  subscriptionExpiryDate?: string; 
 }
 
 const initialMockUsers: AdminUser[] = [
@@ -101,12 +101,11 @@ export default function AdminUsersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const { toast } = useToast();
-  const userContext = useUser(); // Get user context for addNotification
+  const userContext = useUser(); 
 
   useEffect(() => {
     const storedUsers = localStorage.getItem(LOCAL_STORAGE_KEY);
     if (storedUsers) {
-      // Check if demo user exists, if not, add it and then set state
       let usersFromStorage: AdminUser[] = JSON.parse(storedUsers);
       const demoUserExists = usersFromStorage.some(u => u.id === "usr_000_demo");
       if (!demoUserExists) {
@@ -138,8 +137,8 @@ export default function AdminUsersPage() {
         ...defaultNewAdminCreatedUser,
         subscription: defaultPlan,
         allowedDevices: PLAN_DETAILS[defaultPlan]?.maxDevices || 0,
-        joinedDate: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD
-        avatarUrl: `https://picsum.photos/seed/${Date.now()}/40/40`,
+        joinedDate: new Date().toLocaleDateString('en-CA'), 
+        avatarUrl: `https://placehold.co/40x40.png?text=${defaultNewAdminCreatedUser.firstName?.[0] || 'U'}`,
       });
       setEditingUserId(null);
     }
@@ -152,13 +151,10 @@ export default function AdminUsersPage() {
         ...prev,
         subscription: newPlan,
         allowedDevices: planDetails?.maxDevices ?? prev?.allowedDevices ?? 0,
-        // Optionally reset feature flags based on plan, or let admin explicitly set them
-        // allowBluetoothControlFeatures: planDetails?.canControlDevice ?? false, // Example logic
-        // allowWaterLeakConfigFeatures: planDetails?.hasAutoShutdownFeature ?? false, // Example logic
     }));
   };
   
-  const handleSaveUser = (userToSave?: AdminUser) => { // Modified to optionally accept a user directly
+  const handleSaveUser = (userToSave?: AdminUser) => { 
     const dataToSave = userToSave || currentUserData;
 
     if (!dataToSave.firstName || !dataToSave.lastName || !dataToSave.email) {
@@ -172,7 +168,6 @@ export default function AdminUsersPage() {
     
     let updatedUsers;
     const planDetails = PLAN_DETAILS[dataToSave.subscription];
-    // Ensure expiry date exists, default to 30 days from now if not set or if it's a new user/approval
     let subscriptionExpiry = dataToSave.subscriptionExpiryDate;
     if (!subscriptionExpiry && dataToSave.status === 'active') {
       subscriptionExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -187,7 +182,7 @@ export default function AdminUsersPage() {
             ...user, 
             ...dataToSave,
             allowedDevices: dataToSave.allowedDevices ?? planDetails?.maxDevices ?? user.allowedDevices,
-            subscriptionExpiryDate: subscriptionExpiry ?? user.subscriptionExpiryDate, // Keep existing if not changed
+            subscriptionExpiryDate: subscriptionExpiry ?? user.subscriptionExpiryDate, 
           } as AdminUser 
         : user
       );
@@ -197,10 +192,10 @@ export default function AdminUsersPage() {
         id: `usr_${Date.now()}`,
         ...defaultNewAdminCreatedUser, 
         ...dataToSave,
-        devices: 0, // New users start with 0 actual devices
+        devices: 0, 
         allowedDevices: dataToSave.allowedDevices ?? planDetails?.maxDevices ?? 0,
         joinedDate: dataToSave.joinedDate || new Date().toLocaleDateString('en-CA'),
-        avatarUrl: dataToSave.avatarUrl || `https://picsum.photos/seed/${Date.now()}/40/40`,
+        avatarUrl: dataToSave.avatarUrl || `https://placehold.co/40x40.png?text=${dataToSave.firstName?.[0] || 'N'}`,
         subscriptionExpiryDate: subscriptionExpiry,
       } as AdminUser;
       updatedUsers = [newUser, ...users];
@@ -234,7 +229,6 @@ export default function AdminUsersPage() {
       return;
     }
     
-    console.log(`Admin sending notification to ${notificationTargetUser.email}: ${notificationMessage}`);
     userContext.addNotification(`Admin message for ${notificationTargetUser.firstName}: ${notificationMessage}`, 'admin');
 
     toast({ title: "Notification Sent", description: `Message sent to ${notificationTargetUser.firstName} ${notificationTargetUser.lastName}.` });
@@ -253,9 +247,9 @@ export default function AdminUsersPage() {
   const getStatusBadge = (status: AdminUser['status']) => {
     switch (status) {
       case 'active':
-        return <Badge className="bg-green-500 hover:bg-green-600"><CheckCircle className="mr-1 h-3 w-3"/>Active</Badge>;
+        return <Badge className="bg-green-500 hover:bg-green-600 text-primary-foreground"><CheckCircle className="mr-1 h-3 w-3"/>Active</Badge>;
       case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-500 hover:bg-yellow-600"><Clock className="mr-1 h-3 w-3"/>Pending</Badge>;
+        return <Badge variant="secondary" className="bg-yellow-500 hover:bg-yellow-600 text-primary-foreground"><Clock className="mr-1 h-3 w-3"/>Pending</Badge>;
       case 'rejected':
         return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3"/>Rejected</Badge>;
       default:
@@ -263,6 +257,45 @@ export default function AdminUsersPage() {
     }
   };
 
+  const downloadUsersCSV = () => {
+    const headers = ["ID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Subscription", "Allowed Devices", "Joined Date", "Status", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
+    const csvRows = [
+        headers.join(','),
+        ...filteredUsers.map(u => [
+            u.id,
+            u.firstName,
+            u.lastName,
+            u.email,
+            u.whatsappNumber,
+            u.companyName,
+            u.subscription,
+            u.allowedDevices,
+            u.joinedDate,
+            u.status,
+            u.subscriptionExpiryDate ? new Date(u.subscriptionExpiryDate).toLocaleDateString() : 'N/A',
+            u.allowBluetoothControlFeatures,
+            u.allowWaterLeakConfigFeatures
+        ].join(','))
+    ];
+    const csvString = csvRows.join('\r\n');
+    const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute('href', url);
+        link.setAttribute('download', `iot_guardian_users_${new Date().toISOString().split('T')[0]}.csv`);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    }
+    toast({ title: "Users CSV Exported", description: "User data has been downloaded."});
+  };
+
+  const totalUsers = users.length;
+  const activeUsers = users.filter(u => u.status === 'active').length;
+  const pendingUsers = users.filter(u => u.status === 'pending').length;
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -270,10 +303,46 @@ export default function AdminUsersPage() {
         title="Manage Users"
         description="View, edit, and manage all registered users, including pending approvals."
       >
-        <Button onClick={() => handleOpenUserModal()}>
-          <PlusCircle className="mr-2 h-4 w-4" /> Add New User
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={downloadUsersCSV} variant="outline">
+            <Download className="mr-2 h-4 w-4" /> Download CSV
+          </Button>
+          <Button onClick={() => handleOpenUserModal()}>
+            <PlusCircle className="mr-2 h-4 w-4" /> Add New User
+          </Button>
+        </div>
       </PageHeader>
+
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
+            <UsersIcon className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{totalUsers}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
+            <UserCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{activeUsers}</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+            <UserCog className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{pendingUsers}</div>
+          </CardContent>
+        </Card>
+      </div>
+
 
       <div className="flex items-center justify-between gap-4">
         <div className="relative flex-1 md:grow-0">
@@ -418,7 +487,7 @@ export default function AdminUsersPage() {
                 placeholder={editingUserId ? "Leave blank to keep current" : "Set password"}
                 onChange={(e) => setCurrentUserData({ ...currentUserData, passwordHash: e.target.value })} 
                 className="col-span-3" 
-                disabled={editingUserId === "usr_000_demo"} // Disable password change for demo user
+                disabled={editingUserId === "usr_000_demo"} 
               />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
@@ -426,7 +495,7 @@ export default function AdminUsersPage() {
               <Select 
                 value={currentUserData.status || "pending"} 
                 onValueChange={(value) => setCurrentUserData({ ...currentUserData, status: value as AdminUser['status'] })}
-                disabled={editingUserId === "usr_000_demo" && currentUserData.status === "active"} // Prevent changing demo user from active
+                disabled={editingUserId === "usr_000_demo" && currentUserData.status === "active"} 
               >
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
                 <SelectContent>
@@ -491,7 +560,6 @@ export default function AdminUsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Notification Modal */}
       <Dialog open={isNotificationModalOpen} onOpenChange={setIsNotificationModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
