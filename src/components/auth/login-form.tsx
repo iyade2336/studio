@@ -7,13 +7,14 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription as CardDesc, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Renamed CardDescription to CardDesc
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
@@ -140,7 +141,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Login to IoT Guardian</CardTitle>
-        <CardDescription>Enter your credentials to access your dashboard or admin panel.</CardDescription>
+        <CardDesc>Enter your credentials to access your dashboard or admin panel.</CardDesc>
       </CardHeader>
       <CardContent>
         <Form {...form}>
