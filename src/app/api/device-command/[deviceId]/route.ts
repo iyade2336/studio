@@ -1,10 +1,8 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-
-// In-memory store for device commands. In production, use a database.
-// Stores the latest command for each device.
-let deviceCommands: Record<string, { command: 'ON' | 'OFF'; timestamp: string; parameters?: Record<string, any> }> = {};
+import { db } from '@/lib/firebase';
+import { collection, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 
 const CommandSchema = z.object({
   command: z.enum(['ON', 'OFF']),
@@ -29,15 +27,20 @@ export async function POST(
     }
 
     const { command, parameters } = validationResult.data;
-
-    deviceCommands[deviceId] = {
+    
+    const commandToStore = {
       command,
       parameters,
       timestamp: new Date().toISOString(),
+      serverTimestamp: serverTimestamp(),
+      processed: false, // Flag to indicate if the device has acted on the command
     };
 
-    console.log(`Command for device ${deviceId} set to:`, deviceCommands[deviceId]);
-    return NextResponse.json({ status: 'success', message: `Command ${command} queued for device ${deviceId}.`, deviceId, commandDetails: deviceCommands[deviceId] }, { status: 200 });
+    // Use setDoc with deviceId as the document ID for easy retrieval.
+    await setDoc(doc(db, "deviceCommands", deviceId), commandToStore);
+
+    console.log(`Command for device ${deviceId} set to:`, commandToStore);
+    return NextResponse.json({ status: 'success', message: `Command ${command} queued for device ${deviceId}.`, deviceId, commandDetails: commandToStore }, { status: 200 });
 
   } catch (error) {
     console.error(`Error processing command for device ${deviceId}:`, error);
@@ -57,17 +60,15 @@ export async function GET(
     return NextResponse.json({ error: 'Device ID is required' }, { status: 400 });
   }
 
-  const commandDetails = deviceCommands[deviceId];
+  const commandDocRef = doc(db, "deviceCommands", deviceId);
+  const docSnap = await getDoc(commandDocRef);
 
-  if (commandDetails) {
-    // Optional: Clear the command after it's fetched by the device to avoid re-execution,
-    // or implement a more sophisticated command queue/acknowledgment system.
-    // For now, we just return it. If ESP32 polls frequently, it might get the same command multiple times.
-    // A robust system would involve the device acknowledging receipt.
-    // delete deviceCommands[deviceId]; // Example: clear after fetch
-
+  if (docSnap.exists()) {
+    const commandDetails = docSnap.data();
+    // In a robust system, you might delete the command or mark it as processed here.
+    // For this implementation, we'll just return it. The device should handle not re-processing old commands.
     return NextResponse.json(commandDetails, { status: 200 });
   } else {
-    return NextResponse.json({ message: `No pending commands for device ${deviceId}.` }, { status: 200 }); // 200 or 404 depending on desired behavior
+    return NextResponse.json({ message: `No pending commands for device ${deviceId}.` }, { status: 200 }); 
   }
 }

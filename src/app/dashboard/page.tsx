@@ -8,26 +8,42 @@ import Link from "next/link";
 import { AlertTriangle, Info, Wrench, CreditCard, MonitorSmartphone } from "lucide-react"; 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useUser } from "@/context/user-context";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
+import { Loader2 } from "lucide-react";
 
 export default function DashboardPage() {
-  const { currentUser } = useUser(); 
+  const { currentUser, isLoading: isUserLoading } = useUser(); 
+  const router = useRouter();
 
-  const userName = currentUser?.isLoggedIn ? currentUser.name : "Guest";
-  const subscriptionPlan = currentUser?.isLoggedIn ? currentUser.subscription.planName : "No Plan";
+  useEffect(() => {
+    if (!isUserLoading && !currentUser?.isLoggedIn) {
+      router.push('/auth/login');
+    }
+  }, [currentUser, isUserLoading, router]);
+
+  if (isUserLoading || !currentUser?.isLoggedIn) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-16 w-16 animate-spin text-primary" />
+        <p className="ml-4 text-lg">Loading Dashboard...</p>
+      </div>
+    );
+  }
+
+  const userName = currentUser?.name || "User";
+  const subscriptionPlan = currentUser?.subscription.planName || "No Plan";
   
-  // Assuming alerts count might be part of currentUser or fetched separately
-  // For now, using a placeholder if not directly on currentUser
-  const alertsCount = currentUser?.isLoggedIn ? (currentUser as any).alerts || 0 : 0; 
-
+  const alertsCount = 0; // Placeholder for future alert system integration
 
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
         title={`Welcome, ${userName}!`}
-        description={currentUser?.isLoggedIn ? `You are currently on the ${subscriptionPlan}.` : "Please log in or register to manage your devices."}
+        description={currentUser?.isLoggedIn ? `You are currently on the ${subscriptionPlan} plan.` : "Please log in or register to manage your devices."}
       />
 
-      {currentUser?.isLoggedIn && alertsCount > 0 && (
+      {alertsCount > 0 && (
         <Card className="bg-yellow-50 border-yellow-400 dark:bg-yellow-900/30 dark:border-yellow-600">
           <CardHeader className="pb-2">
             <div className="flex items-center">
@@ -43,7 +59,6 @@ export default function DashboardPage() {
             </p>
             <div className="mt-3">
               <Button variant="outline" size="sm" asChild>
-                {/* TODO: Create an /alerts page or link to relevant section in the dashboard */}
                 <Link href="/dashboard#alerts-section"> 
                   <span className="flex items-center">View Alerts</span>
                 </Link>
@@ -55,7 +70,7 @@ export default function DashboardPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Real-time Sensor Data</CardTitle>
+          <CardTitle>Real-time Sensor Data &amp; Analysis</CardTitle>
         </CardHeader>
         <CardContent>
           <RealtimeDataGrid />

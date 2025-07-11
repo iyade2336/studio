@@ -18,7 +18,9 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminUser } from "@/app/admin/users/page"; // Assuming AdminUser type is exported or moved to a shared types file
+import { auth, db } from "@/lib/firebase";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, setDoc } from "firebase/firestore";
 
 const formSchema = z.object({
   firstName: z.string().min(2, {message: "First name must be at least 2 characters."}),
@@ -53,47 +55,26 @@ export function RegisterForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     
-    // Simulate API call / saving to local storage
-    await new Promise(resolve => setTimeout(resolve, 1000));
-
     try {
-      const existingUsersString = localStorage.getItem("iot-guardian-users");
-      const existingUsers: AdminUser[] = existingUsersString ? JSON.parse(existingUsersString) : [];
+      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
+      const user = userCredential.user;
 
-      const emailExists = existingUsers.some(user => user.email === values.email);
-      if (emailExists) {
-        toast({
-          title: "Registration Failed",
-          description: "An account with this email already exists.",
-          variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-      }
-
-      const newUser: AdminUser = {
-        id: `usr_${Date.now()}`,
+      // Now create a document in Firestore for this user
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
         firstName: values.firstName,
         lastName: values.lastName,
         email: values.email,
         whatsappNumber: values.whatsappNumber,
         companyName: values.companyName,
-        // Password should be hashed in a real app; storing it here directly for demo purposes only.
-        // In a real scenario, the backend would handle password hashing and storage.
-        // For this local simulation, we might not even store the password or store a mock hash.
-        // Let's assume password isn't stored directly in the AdminUser object visible to admin.
-        subscription: "None",
-        devices: 0,
-        joinedDate: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD format
-        avatarUrl: `https://picsum.photos/seed/${Date.now()}/40/40`, // Placeholder avatar
         status: 'pending',
-        // Add a field for the password (or a mock hash) if login form needs to check it from localStorage
-        // This is insecure for real apps.
-        passwordHash: values.password, // SUPER INSECURE - FOR DEMO ONLY
-      };
-
-      existingUsers.push(newUser);
-      localStorage.setItem("iot-guardian-users", JSON.stringify(existingUsers));
+        subscription: "None",
+        allowedDevices: 0,
+        joinedDate: new Date().toISOString(),
+        avatarUrl: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
+        allowBluetoothControlFeatures: false,
+        allowWaterLeakConfigFeatures: false,
+      });
 
       toast({
         title: "Registration Successful",
@@ -101,11 +82,15 @@ export function RegisterForm() {
       });
       form.reset();
 
-    } catch (error) {
+    } catch (error: any) {
       console.error("Registration error:", error);
+      let errorMessage = "An unexpected error occurred. Please try again.";
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = "An account with this email already exists.";
+      }
       toast({
         title: "Registration Failed",
-        description: "An unexpected error occurred. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {

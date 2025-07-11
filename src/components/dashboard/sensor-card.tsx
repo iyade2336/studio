@@ -1,20 +1,22 @@
 
 "use client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
-import { Thermometer, Droplets as HumidityIcon, ShieldAlert, Wifi, WifiOff, AlertTriangle, Power, PowerOff, Waves } from "lucide-react"; // Renamed Droplets to HumidityIcon, added Waves
+import { Thermometer, Droplets as HumidityIcon, ShieldAlert, Wifi, WifiOff, AlertTriangle, Power, PowerOff, Waves } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useUser } from "@/context/user-context";
+import { TemperatureChart, type ChartDataPoint } from "./temperature-chart";
 
 export interface SensorData {
-  id: string;
+  id: string; // deviceId
   name: string;
   temperature?: number;
   humidity?: number;
   waterLeak?: boolean;
   status: "ok" | "warning" | "danger" | "offline";
   lastUpdated?: string;
-  deviceState?: 'ON' | 'OFF'; 
+  deviceState?: 'ON' | 'OFF';
+  historicalData?: ChartDataPoint[]; // Add historical data for charting
 }
 
 interface SensorCardProps {
@@ -43,11 +45,11 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
   const getBorderColor = () => {
     switch (sensor.status) {
       case "ok":
-        return "border-green-500";
+        return "border-green-500/50";
       case "warning":
-        return "border-yellow-500";
+        return "border-yellow-500/50";
       case "danger":
-        return "border-red-500";
+        return "border-red-500/50";
       case "offline":
         return "border-muted";
       default:
@@ -111,6 +113,13 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
                     <AlertTriangle className="h-4 w-4 mr-2 shrink-0"/>
                     <span>Critical! Auto-shutdown may be active.</span>
                 </div>
+            )}
+
+            {sensor.historicalData && sensor.historicalData.length > 1 && (
+              <div className="pt-4 mt-2 border-t">
+                  <h4 className="text-xs font-semibold text-muted-foreground mb-1">Temperature Trend</h4>
+                  <TemperatureChart data={sensor.historicalData} />
+              </div>
             )}
           </div>
         )}
