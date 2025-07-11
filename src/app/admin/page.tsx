@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, HardDrive, ShieldQuestion, BarChart3, Loader2 } from "lucide-react";
+import { Users, HardDrive, ShieldQuestion, BarChart3, Loader2, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -23,42 +23,24 @@ const fetchActiveDevicesCount = async () => {
   return snapshot.size;
 };
 
+const fetchErrorReportsCount = async () => {
+    const errorsRef = collection(db, 'errorReports');
+    const snapshot = await getDocs(errorsRef);
+    return snapshot.size;
+};
+
 
 export default function AdminDashboardPage() {
-    const [usersCount, setUsersCount] = useState(0);
-    const [activeDevicesCount, setActiveDevicesCount] = useState(0);
-    const [isLoading, setIsLoading] = useState(true);
+    const { data: usersCount, isLoading: isLoadingUsers } = useQuery({ queryKey: ['usersCount'], queryFn: fetchUsersCount });
+    const { data: activeDevicesCount, isLoading: isLoadingDevices } = useQuery({ queryKey: ['activeDevicesCount'], queryFn: fetchActiveDevicesCount });
+    const { data: errorReportsCount, isLoading: isLoadingErrors } = useQuery({ queryKey: ['errorReportsCount'], queryFn: fetchErrorReportsCount });
 
-    useEffect(() => {
-        const usersRef = collection(db, "users");
-        const devicesRef = collection(db, 'devices');
-        const activeDevicesQuery = query(devicesRef, where('status', '==', 'online'));
-
-        const unsubUsers = onSnapshot(usersRef, (snapshot) => {
-            setUsersCount(snapshot.size);
-            if(isLoading) setIsLoading(false);
-        });
-
-        const unsubDevices = onSnapshot(activeDevicesQuery, (snapshot) => {
-            setActiveDevicesCount(snapshot.size);
-            if(isLoading) setIsLoading(false);
-        });
-
-        // Initial load check
-        Promise.all([getDocs(usersRef), getDocs(activeDevicesQuery)]).then(() => {
-            setIsLoading(false);
-        }).catch(() => setIsLoading(false));
-
-        return () => {
-            unsubUsers();
-            unsubDevices();
-        };
-    }, [isLoading]);
+    const isLoading = isLoadingUsers || isLoadingDevices || isLoadingErrors;
 
   const adminStats = [
-    { title: "Total Users", value: isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : usersCount, icon: Users, color: "text-blue-500", href: "/admin/users" },
-    { title: "Active Devices", value: isLoading ? <Loader2 className="h-5 w-5 animate-spin"/> : activeDevicesCount, icon: HardDrive, color: "text-green-500", href: "/admin/devices" },
-    { title: "Reported Issues", value: "56", icon: ShieldQuestion, color: "text-red-500", href: "/admin/manage-issues" },
+    { title: "Total Users", value: isLoadingUsers ? <Loader2 className="h-5 w-5 animate-spin"/> : usersCount, icon: Users, color: "text-blue-500", href: "/admin/users" },
+    { title: "Active Devices", value: isLoadingDevices ? <Loader2 className="h-5 w-5 animate-spin"/> : activeDevicesCount, icon: HardDrive, color: "text-green-500", href: "/admin/devices" },
+    { title: "Reported Errors", value: isLoadingErrors ? <Loader2 className="h-5 w-5 animate-spin"/> : errorReportsCount, icon: AlertTriangle, color: "text-red-500", href: "#" },
     { title: "System Health", value: "99.8%", icon: BarChart3, color: "text-teal-500", href: "#" },
   ];
 
