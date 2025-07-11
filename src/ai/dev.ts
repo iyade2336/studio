@@ -1,6 +1,6 @@
 'use server';
 
-import {config} from 'dotenv';
-config();
+// NOTE: .env.local variables are loaded automatically by Next.js.
+// No need for dotenv.config() here.
 
 import '@/ai/flows/troubleshoot-sensor-data.ts';

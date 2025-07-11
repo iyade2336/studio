@@ -16,7 +16,7 @@ You can start editing the page by modifying `src/app/page.tsx`. The page auto-up
 
 ## Environment Variables
 
-To run this project, you will need to add the following environment variables to your `.env.local` file. Create this file by copying the `.env.example` file.
+To run this project, you will need to add the following environment variables to a `.env.local` file in the project root. You can create this file by copying the `.env.example` file.
 
 `GEMINI_API_KEY` - Your API key for Google AI Studio.
 `NEXT_PUBLIC_FIREBASE_API_KEY` - Your Firebase Web API Key.
