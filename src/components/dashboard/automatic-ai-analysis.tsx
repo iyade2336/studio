@@ -1,3 +1,4 @@
+
 "use client"
 import { useState, useEffect } from "react";
 import type { TroubleshootSensorDataInput, TroubleshootSensorDataOutput } from "@/ai/flows/troubleshoot-sensor-data";
@@ -8,6 +9,8 @@ import { AlertTriangle, Bot, CheckCircle2, Loader2 } from "lucide-react";
 import type { SensorData } from "./sensor-card";
 import { useLanguage } from "@/context/language-context";
 import { translations } from "@/lib/translations";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "@/lib/firebase";
 
 interface AutomaticAiAnalysisProps {
     sensorData: SensorData;
@@ -67,6 +70,18 @@ export function AutomaticAiAnalysis({ sensorData }: AutomaticAiAnalysisProps) {
             try {
                 const aiResponse = await troubleshootSensorData(input);
                 setResult(aiResponse);
+
+                // Save analysis to Firestore
+                if (currentUser) {
+                    await addDoc(collection(db, "aiAnalyses"), {
+                        userId: currentUser.uid,
+                        deviceId: sensorData.id,
+                        inputData: input,
+                        outputData: aiResponse,
+                        createdAt: serverTimestamp(),
+                    });
+                }
+
             } catch (e) {
                 console.error("Error calling AI flow:", e);
                 setError(e instanceof Error ? e.message : "An unknown error occurred.");
@@ -76,7 +91,7 @@ export function AutomaticAiAnalysis({ sensorData }: AutomaticAiAnalysisProps) {
         };
 
         analyzeData();
-    }, [sensorData.id, currentUser?.subscription.canAccessAiTroubleshooter]); // Re-run analysis if the problematic sensor changes
+    }, [sensorData.id, currentUser?.subscription.canAccessAiTroubleshooter, currentUser]); // Re-run analysis if the problematic sensor changes or user changes
 
     return (
         <Card className="shadow-lg bg-gradient-to-br from-background to-secondary/30 border-l-4 border-primary">

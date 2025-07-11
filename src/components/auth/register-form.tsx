@@ -78,7 +78,7 @@ export function RegisterForm() {
 
       toast({
         title: "Registration Successful!",
-        description: "Your account has been created. An administrator will review your application. You can log in once it's been approved.",
+        description: "Your account is now pending admin approval. You will be able to log in once it's reviewed.",
         duration: 9000,
       });
       form.reset();
@@ -217,5 +217,3 @@ export function RegisterForm() {
     </Card>
   );
 }
-
-    

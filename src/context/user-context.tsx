@@ -127,7 +127,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 return;
             }
 
-            const planDetails = PLAN_DETAILS[userDataFromDb.subscription] || PLAN_DETAILS["None"];
+            const planName = userDataFromDb.subscription;
+            const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
 
             const userToSet: User = {
               id: docSnap.id,
@@ -143,13 +144,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
               allowBluetoothControlFeatures: userDataFromDb.allowBluetoothControlFeatures,
               allowWaterLeakConfigFeatures: userDataFromDb.allowWaterLeakConfigFeatures,
               subscription: {
-                planName: userDataFromDb.subscription,
+                planName: planName,
                 expiryDate: userDataFromDb.subscriptionExpiryDate || new Date().toISOString(),
                 maxDevices: userDataFromDb.allowedDevices ?? planDetails.maxDevices ?? 0,
-                canControlDevice: userDataFromDb.allowBluetoothControlFeatures,
-                canExportCsv: true, // Let's assume all active users can export
-                hasAutoShutdownFeature: userDataFromDb.allowWaterLeakConfigFeatures,
-                canAccessAiTroubleshooter: (PLAN_DETAILS[userDataFromDb.subscription] || {}).canAccessAiTroubleshooter || false,
+                canControlDevice: planDetails.canControlDevice ?? false,
+                canExportCsv: planDetails.canExportCsv ?? false,
+                hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
+                canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
               },
             };
             setCurrentUser(userToSet);
