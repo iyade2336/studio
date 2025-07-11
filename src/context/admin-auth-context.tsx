@@ -14,8 +14,8 @@ interface AdminAuthContextType {
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin"; // In a real app, use environment variables and hashing
+const ADMIN_EMAIL = "admin@admin.com";
+const ADMIN_PASSWORD = "123456789";
 
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
   const [isAdmin, setIsAdmin] = useState(false);
@@ -34,8 +34,8 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }, []);
 
-  const login = useCallback((usernameInput: string, passwordInput: string): boolean => {
-    if (usernameInput === ADMIN_USERNAME && passwordInput === ADMIN_PASSWORD) {
+  const login = useCallback((emailInput: string, passwordInput: string): boolean => {
+    if (emailInput === ADMIN_EMAIL && passwordInput === ADMIN_PASSWORD) {
       setIsAdmin(true);
       try {
         localStorage.setItem('isAdminAuthenticated', 'true');
@@ -55,7 +55,7 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Could not access localStorage:", error);
     }
-    router.push('/auth/login'); // Changed from /auth/admin-login
+    router.push('/auth/login');
   }, [router]);
 
   return (

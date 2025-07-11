@@ -7,32 +7,44 @@ import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
-  FormDescription,
   FormField,
   FormItem,
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription as CardDesc, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"; // Renamed CardDescription to CardDesc
+import { Card, CardContent, CardDescription as CardDesc, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import type { AdminUser } from "@/app/admin/users/page";
 import { useAdminAuth } from '@/context/admin-auth-context';
+import { auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 
-const ADMIN_USERNAME = "admin";
-const ADMIN_PASSWORD = "admin";
-const ADMIN_TOKEN = "iyade";
-const LOCAL_STORAGE_KEY_USERS = "iot-guardian-users";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+
+
+const ADMIN_EMAIL = "admin@admin.com";
+const ADMIN_PASSWORD = "123456789";
+
 
 const formSchema = z.object({
-  email: z.string().min(1, { message: "Username or Email is required." }),
-  password: z.string().min(1, { message: "Password is required." }),
-  adminToken: z.string().optional(),
+  email: z.string().email({ message: "Please enter a valid email." }),
+  password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
 
 export function LoginForm() {
@@ -41,99 +53,105 @@ export function LoginForm() {
   const adminAuth = useAdminAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const [resetEmail, setResetEmail] = useState("");
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       email: "",
       password: "",
-      adminToken: "",
     },
   });
 
+  const handlePasswordReset = async () => {
+    if (!resetEmail) {
+      toast({ title: "Email required", description: "Please enter your email address to reset the password.", variant: "destructive"});
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await sendPasswordResetEmail(auth, resetEmail);
+      toast({ title: "Password Reset Email Sent", description: "Please check your inbox to reset your password."});
+    } catch (error: any) {
+       console.error("Password reset error:", error);
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    await new Promise(resolve => setTimeout(resolve, 700)); // Simulate API call
 
-    if (values.email === ADMIN_USERNAME && values.password === ADMIN_PASSWORD) {
-      // Admin login attempt
-      if (values.adminToken === ADMIN_TOKEN) {
-        const adminLoginSuccess = adminAuth.login(values.email, values.password);
-        if (adminLoginSuccess) {
-          toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
-          router.push('/admin');
-          // No need to setIsLoading(false) as router.push will unmount
-        } else {
-          // This case should ideally not happen if credentials are correct in context
-          toast({ title: "Admin Login Failed", description: "An unexpected error occurred with admin authentication.", variant: "destructive" });
-          setIsLoading(false);
-        }
+    // Admin login check
+    if (values.email === ADMIN_EMAIL && values.password === ADMIN_PASSWORD) {
+      const adminLoginSuccess = adminAuth.login(values.email, values.password);
+      if (adminLoginSuccess) {
+        toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
+        router.push('/admin');
       } else {
-        toast({ title: "Admin Login Failed", description: "Invalid or missing admin token for admin user.", variant: "destructive" });
+        toast({ title: "Admin Login Failed", description: "An unexpected error occurred.", variant: "destructive" });
         setIsLoading(false);
       }
-    } else {
-      // Regular user login attempt
-      try {
-        const usersString = localStorage.getItem(LOCAL_STORAGE_KEY_USERS);
-        const users: AdminUser[] = usersString ? JSON.parse(usersString) : [];
-        const foundUser = users.find(user => user.email === values.email);
+      return;
+    }
 
-        if (!foundUser) {
-          toast({ title: "Login Failed", description: "User not found.", variant: "destructive" });
-          setIsLoading(false);
-          return;
+    // Regular user login
+    try {
+        const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
+        const user = userCredential.user;
+
+        const userDocRef = doc(db, "users", user.uid);
+        const userDoc = await getDoc(userDocRef);
+
+        if (!userDoc.exists()) {
+            throw new Error("User data not found in Firestore.");
         }
 
-        if (foundUser.passwordHash !== values.password) {
-          toast({ title: "Login Failed", description: "Invalid email or password.", variant: "destructive" });
-          setIsLoading(false);
-          return;
-        }
+        const userData = userDoc.data();
 
-        if (foundUser.status === 'pending') {
+        if (userData.status === 'pending') {
           toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default" });
           setIsLoading(false);
           return;
         }
 
-        if (foundUser.status === 'rejected') {
+        if (userData.status === 'rejected') {
           toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive" });
           setIsLoading(false);
           return;
         }
-
-        if (foundUser.status === 'active') {
-          loginUser({
-            id: foundUser.id,
-            name: `${foundUser.firstName} ${foundUser.lastName}`,
-            email: foundUser.email,
-            isLoggedIn: true,
-            subscription: {
-              planName: foundUser.subscription,
-              expiryDate: foundUser.subscriptionExpiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-              maxDevices: foundUser.allowedDevices,
-              canControlDevice: foundUser.allowBluetoothControlFeatures, // Assuming this is a direct mapping for now
-              canExportCsv: true, // Example, adjust based on plan logic if needed
-              hasAutoShutdownFeature: foundUser.allowWaterLeakConfigFeatures, // Assuming this is a direct mapping
-              canAccessAiTroubleshooter: foundUser.subscription === 'Premium' || foundUser.subscription === 'Enterprise', // Example logic
-            },
-            firstName: foundUser.firstName,
-            lastName: foundUser.lastName,
-            companyName: foundUser.companyName,
-            whatsappNumber: foundUser.whatsappNumber,
-          });
-          toast({ title: "Login Successful", description: "Welcome back!" });
-          router.push('/');
+        
+        if (userData.status === 'active') {
+             loginUser({
+                id: user.uid,
+                uid: user.uid,
+                name: `${userData.firstName} ${userData.lastName}`,
+                email: userData.email,
+                isLoggedIn: true,
+                subscription: userData.subscription, // This is now the object from firestore
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                companyName: userData.companyName,
+                whatsappNumber: userData.whatsappNumber,
+                ...userData // spread the rest of the fields like feature flags
+            });
+            toast({ title: "Login Successful", description: "Welcome back!" });
+            router.push('/dashboard');
         } else {
-          toast({ title: "Login Failed", description: "Account status unknown or inactive.", variant: "destructive" });
-          setIsLoading(false);
+            toast({ title: "Login Failed", description: "Account status unknown or inactive.", variant: "destructive" });
+            setIsLoading(false);
         }
-      } catch (error) {
+
+    } catch (error: any) {
         console.error("User login error:", error);
-        toast({ title: "Login Failed", description: "An unexpected error occurred.", variant: "destructive" });
+        let errorMessage = "Invalid credentials or user not found.";
+        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+            errorMessage = "Invalid email or password. Please try again.";
+        }
+        toast({ title: "Login Failed", description: errorMessage, variant: "destructive" });
         setIsLoading(false);
-      }
     }
   }
 
@@ -141,7 +159,7 @@ export function LoginForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Login to IoT Guardian</CardTitle>
-        <CardDesc>Enter your credentials to access your dashboard or admin panel.</CardDesc>
+        <CardDesc>Enter your credentials to access your dashboard.</CardDesc>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -151,9 +169,9 @@ export function LoginForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Username / Email</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input placeholder="user@example.com or admin" {...field} />
+                    <Input placeholder="user@example.com" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -172,20 +190,6 @@ export function LoginForm() {
                 </FormItem>
               )}
             />
-            <FormField
-              control={form.control}
-              name="adminToken"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Admin Token (Optional)</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="Enter if logging in as admin" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                  <FormDescription>Only required if username is 'admin'.</FormDescription>
-                </FormItem>
-              )}
-            />
             <Button type="submit" className="w-full" disabled={isLoading}>
               {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Login
@@ -193,10 +197,33 @@ export function LoginForm() {
           </form>
         </Form>
       </CardContent>
-      <CardFooter className="flex flex-col gap-2 text-sm">
-         <Link href="#" className="text-primary hover:underline">
-            Forgot password?
-          </Link>
+      <CardFooter className="flex flex-col gap-4 text-sm">
+         <AlertDialog>
+            <AlertDialogTrigger asChild>
+                <Button variant="link" className="p-0 h-auto">Forgot password?</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Reset your password</AlertDialogTitle>
+                <AlertDialogDescription>
+                    Enter your email address below and we will send you a link to reset your password.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input 
+                    type="email" 
+                    placeholder="you@example.com" 
+                    value={resetEmail}
+                    onChange={(e) => setResetEmail(e.target.value)}
+                />
+                <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handlePasswordReset} disabled={isLoading}>
+                    {isLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : "Send Reset Link"}
+                </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
         <p className="text-muted-foreground">
           Don&apos;t have an account?{" "}
           <Link href="/auth/register" className="text-primary hover:underline">

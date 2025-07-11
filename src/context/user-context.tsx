@@ -4,23 +4,27 @@
 import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useToast } from '@/hooks/use-toast'; // Import useToast
+import { useToast } from '@/hooks/use-toast';
+import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
+import { auth, db } from '@/lib/firebase';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
-interface Subscription {
+// Keep the Subscription interface to define the shape of the subscription object
+export interface Subscription {
   planName: string;
-  expiryDate: string; // ISO string "YYYY-MM-DDTHH:mm:ss.sssZ"
-  // Derived or set by admin/login logic
+  expiryDate: string; 
   maxDevices: number;
-  canControlDevice: boolean; // For on/off commands
+  canControlDevice: boolean;
   canExportCsv: boolean;
-  hasAutoShutdownFeature: boolean; // For leak/temp auto-shutdown alerts
+  hasAutoShutdownFeature: boolean; 
   canAccessAiTroubleshooter: boolean;
 }
 
-// Updated User interface
+// User interface now more closely mirrors the Firestore document
 export interface User {
-  id: string;
-  name: string; // Combined Full Name (firstName + lastName)
+  id: string; // This will be the Firestore document ID (same as uid)
+  uid: string; // Firebase Auth UID
+  name: string; // Combined Full Name
   firstName: string;
   lastName: string;
   email: string;
@@ -28,12 +32,11 @@ export interface User {
   companyName: string;
   isLoggedIn: boolean;
   subscription: Subscription;
-  // Admin-configurable features, overriding plan defaults if necessary
-  allowBluetoothControlFeatures?: boolean; 
-  allowWaterLeakConfigFeatures?: boolean; 
-  // Actual connected devices (future enhancement, for now matches maxDevices or is illustrative)
-  currentDeviceCount?: number; 
+  status: 'pending' | 'active' | 'rejected';
+  allowBluetoothControlFeatures: boolean;
+  allowWaterLeakConfigFeatures: boolean;
 }
+
 
 export interface AppNotification {
   id: string;
@@ -45,16 +48,17 @@ export interface AppNotification {
 
 interface UserContextType {
   currentUser: User | null;
+  isLoading: boolean;
   notifications: AppNotification[];
   unreadNotificationCount: number;
-  loginUser: (userData: User) => void;
+  loginUser: (userData: User) => void; // Kept for manual login if needed, but flow changes
   logoutUser: () => void;
   addNotification: (message: string, type: AppNotification['type']) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotifications: () => void;
   getSubscriptionDaysRemaining: () => string;
-  checkDeviceLimit: (currentDeviceCount: number) => boolean; // True if within limit
+  checkDeviceLimit: (currentDeviceCount: number) => boolean;
   refreshCurrentUser: (updatedUserData: Partial<User>) => void;
 }
 
@@ -65,12 +69,12 @@ export const PLAN_DETAILS: Record<string, Partial<Subscription>> = {
   "Free Trial": { maxDevices: 1, canControlDevice: false, canExportCsv: true, hasAutoShutdownFeature: false, canAccessAiTroubleshooter: true },
   "Basic": { maxDevices: 1, canControlDevice: false, canExportCsv: true, hasAutoShutdownFeature: false, canAccessAiTroubleshooter: false },
   "Premium": { maxDevices: 3, canControlDevice: true, canExportCsv: true, hasAutoShutdownFeature: true, canAccessAiTroubleshooter: true },
-  "Enterprise": { maxDevices: 10, canControlDevice: true, canExportCsv: true, hasAutoShutdownFeature: true, canAccessAiTroubleshooter: true }, // Default for Enterprise, admin can override
+  "Enterprise": { maxDevices: 10, canControlDevice: true, canExportCsv: true, hasAutoShutdownFeature: true, canAccessAiTroubleshooter: true }, 
 };
-
 
 const MOCK_USER_LOGGED_OUT: User = {
   id: '',
+  uid: '',
   name: 'Guest',
   firstName: '',
   lastName: '',
@@ -78,107 +82,119 @@ const MOCK_USER_LOGGED_OUT: User = {
   whatsappNumber: '',
   companyName: '',
   isLoggedIn: false,
+  status: 'pending',
+  allowBluetoothControlFeatures: false,
+  allowWaterLeakConfigFeatures: false,
   subscription: {
     planName: 'None',
     expiryDate: new Date(0).toISOString(),
-    maxDevices: PLAN_DETAILS["None"].maxDevices!,
-    canControlDevice: PLAN_DETAILS["None"].canControlDevice!,
-    canExportCsv: PLAN_DETAILS["None"].canExportCsv!,
-    hasAutoShutdownFeature: PLAN_DETAILS["None"].hasAutoShutdownFeature!,
-    canAccessAiTroubleshooter: PLAN_DETAILS["None"].canAccessAiTroubleshooter!,
-  }
-}
+    ...PLAN_DETAILS["None"],
+  } as Subscription,
+};
 
-const LOCAL_STORAGE_KEY_CURRENT_USER = 'iot-guardian-currentUser';
 const LOCAL_STORAGE_KEY_NOTIFICATIONS = 'iot-guardian-userNotifications';
 
-
 export function UserProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(MOCK_USER_LOGGED_OUT);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const router = useRouter();
-  const { toast } = useToast(); // Initialize toast
+  const { toast } = useToast();
 
   useEffect(() => {
-    const storedUser = localStorage.getItem(LOCAL_STORAGE_KEY_CURRENT_USER);
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser) as User;
-        if (parsedUser.isLoggedIn) {
-           // Ensure subscription details are fully populated based on planName
-           const planDetails = PLAN_DETAILS[parsedUser.subscription.planName] || PLAN_DETAILS["None"];
-           setCurrentUser({
-             ...parsedUser,
-             subscription: {
-               ...parsedUser.subscription,
-               maxDevices: parsedUser.subscription.maxDevices ?? planDetails.maxDevices!,
-               canControlDevice: parsedUser.subscription.canControlDevice ?? planDetails.canControlDevice!,
-               canExportCsv: parsedUser.subscription.canExportCsv ?? planDetails.canExportCsv!,
-               hasAutoShutdownFeature: parsedUser.subscription.hasAutoShutdownFeature ?? planDetails.hasAutoShutdownFeature!,
-               canAccessAiTroubleshooter: parsedUser.subscription.canAccessAiTroubleshooter ?? planDetails.canAccessAiTroubleshooter!,
-             }
-           });
-        } else {
-          setCurrentUser(MOCK_USER_LOGGED_OUT);
-        }
-      } catch (e) {
-        setCurrentUser(MOCK_USER_LOGGED_OUT); 
-      }
-    } else {
-       setCurrentUser(MOCK_USER_LOGGED_OUT);
-    }
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
+      if (firebaseUser) {
+        // User is signed in, see docs for a list of available properties
+        // https://firebase.google.com/docs/reference/js/firebase.User
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        
+        // Set up a real-time listener for the user document
+        const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
+          if (docSnap.exists()) {
+            const userDataFromDb = docSnap.data();
 
+            if (userDataFromDb.status !== 'active') {
+                // If user is not active, log them out from the app state
+                signOut(auth); // Sign out from firebase auth
+                setCurrentUser(MOCK_USER_LOGGED_OUT);
+                setIsLoading(false);
+                if (userDataFromDb.status === 'pending') {
+                    toast({ title: "Account Pending", description: "Your account is still awaiting admin approval." });
+                } else if (userDataFromDb.status === 'rejected') {
+                    toast({ title: "Account Rejected", description: "Your account registration has been rejected by an administrator.", variant: "destructive" });
+                }
+                router.push('/auth/login');
+                return;
+            }
+
+            const planDetails = PLAN_DETAILS[userDataFromDb.subscription] || PLAN_DETAILS["None"];
+
+            const userToSet: User = {
+              id: docSnap.id,
+              uid: firebaseUser.uid,
+              isLoggedIn: true,
+              name: `${userDataFromDb.firstName} ${userDataFromDb.lastName}`,
+              firstName: userDataFromDb.firstName,
+              lastName: userDataFromDb.lastName,
+              email: userDataFromDb.email,
+              whatsappNumber: userDataFromDb.whatsappNumber,
+              companyName: userDataFromDb.companyName,
+              status: userDataFromDb.status,
+              allowBluetoothControlFeatures: userDataFromDb.allowBluetoothControlFeatures,
+              allowWaterLeakConfigFeatures: userDataFromDb.allowWaterLeakConfigFeatures,
+              subscription: {
+                planName: userDataFromDb.subscription,
+                expiryDate: userDataFromDb.subscriptionExpiryDate || new Date().toISOString(),
+                maxDevices: userDataFromDb.allowedDevices ?? planDetails.maxDevices ?? 0,
+                canControlDevice: userDataFromDb.allowBluetoothControlFeatures,
+                canExportCsv: true, // Let's assume all active users can export
+                hasAutoShutdownFeature: userDataFromDb.allowWaterLeakConfigFeatures,
+                canAccessAiTroubleshooter: (PLAN_DETAILS[userDataFromDb.subscription] || {}).canAccessAiTroubleshooter || false,
+              },
+            };
+            setCurrentUser(userToSet);
+          } else {
+            // User exists in Auth but not in Firestore, treat as an error/logged out state
+            signOut(auth);
+            setCurrentUser(MOCK_USER_LOGGED_OUT);
+          }
+          setIsLoading(false);
+        });
+        return () => unsubscribeDoc(); // Cleanup the doc listener when auth state changes
+
+      } else {
+        // User is signed out
+        setCurrentUser(MOCK_USER_LOGGED_OUT);
+        setIsLoading(false);
+      }
+    });
+
+    // Notifications logic remains the same (can be enhanced with Firestore later)
     const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
     if (storedNotifications) {
       try {
         const parsedNotifications = (JSON.parse(storedNotifications) as AppNotification[]).map(n => ({...n, timestamp: new Date(n.timestamp)}));
         setNotifications(parsedNotifications);
-      } catch(e) {
-        // ignore
-      }
+      } catch(e) { /* ignore */ }
     } else {
-        setNotifications([
-            { id: '1', message: 'Welcome to IoT Guardian!', type: 'system', read: false, timestamp: new Date(Date.now() - 1000 * 60 * 5) },
-            { id: '2', message: 'Device "Living Room Sensor" reported high temperature.', type: 'arduino', read: true, timestamp: new Date(Date.now() - 1000 * 60 * 60) },
-        ]);
+        setNotifications([]);
     }
-  }, []);
 
-  useEffect(() => {
-    if (currentUser && currentUser.isLoggedIn) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_CURRENT_USER, JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem(LOCAL_STORAGE_KEY_CURRENT_USER);
-    }
-  }, [currentUser]);
+    return () => unsubscribeAuth(); // Cleanup the auth listener on component unmount
+  }, [router, toast]);
 
+  // Save notifications to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
-
+  // This function can be deprecated or used for specific manual login flows if any
   const loginUser = useCallback((userData: User) => {
-    const planName = userData.subscription?.planName || "None";
-    const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
-
-    const userToSave: User = {
-      ...userData,
-      isLoggedIn: true,
-      name: `${userData.firstName} ${userData.lastName}`,
-      subscription: {
-        planName: planName,
-        expiryDate: userData.subscription?.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // Default expiry
-        maxDevices: userData.subscription?.maxDevices ?? planDetails.maxDevices!,
-        canControlDevice: userData.subscription?.canControlDevice ?? planDetails.canControlDevice!,
-        canExportCsv: userData.subscription?.canExportCsv ?? planDetails.canExportCsv!,
-        hasAutoShutdownFeature: userData.subscription?.hasAutoShutdownFeature ?? planDetails.hasAutoShutdownFeature!,
-        canAccessAiTroubleshooter: userData.subscription?.canAccessAiTroubleshooter ?? planDetails.canAccessAiTroubleshooter!,
-      },
-    };
-    setCurrentUser(userToSave);
+    setCurrentUser(userData);
   }, []);
 
-  const logoutUser = useCallback(() => {
+  const logoutUser = useCallback(async () => {
+    await signOut(auth);
     setCurrentUser(MOCK_USER_LOGGED_OUT);
     router.push('/auth/login');
   }, [router]);
@@ -232,7 +248,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const diffTime = expiry.getTime() - today.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     
-    if (diffDays === 0) { // If it expires today
+    if (diffDays === 0) {
         const diffMs = new Date(currentUser.subscription.expiryDate).getTime() - new Date().getTime();
         if (diffMs <= 0) return "Expired";
         const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
@@ -265,6 +281,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     <UserContext.Provider
       value={{
         currentUser,
+        isLoading,
         notifications,
         unreadNotificationCount,
         loginUser,
