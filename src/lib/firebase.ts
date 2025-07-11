@@ -7,20 +7,14 @@ import { getFirestore } from "firebase/firestore";
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  apiKey: "AIzaSyB6-Y2WUy6RUI91KCDtmuz_ZbTdep72SEk",
+  authDomain: "iot-guardian-8o73w.firebaseapp.com",
+  databaseURL: "https://iot-guardian-8o73w-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "iot-guardian-8o73w",
+  storageBucket: "iot-guardian-8o73w.appspot.com",
+  messagingSenderId: "311981433813",
+  appId: "1:311981433813:web:eb91016b4e934d82f5535c"
 };
-
-// Add a check for missing environment variables
-if (!firebaseConfig.apiKey) {
-  throw new Error("Missing Firebase API Key. Please make sure you have a .env.local file with NEXT_PUBLIC_FIREBASE_API_KEY defined.");
-}
-
 
 // Initialize Firebase
 // Check if the app is already initialized to avoid errors during hot-reloading
