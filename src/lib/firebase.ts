@@ -4,17 +4,19 @@ import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
+// Read from environment variables for production
 const firebaseConfig = {
-  apiKey: "AIzaSyB6-Y2WUy6RUI91KCDtmuz_ZbTdep72SEk",
-  authDomain: "iot-guardian-8o73w.firebaseapp.com",
-  databaseURL: "https://iot-guardian-8o73w-default-rtdb.europe-west1.firebasedatabase.app",
-  projectId: "iot-guardian-8o73w",
-  storageBucket: "iot-guardian-8o73w.firebasestorage.app",
-  messagingSenderId: "311981433813",
-  appId: "1:311981433813:web:eb91016b4e934d82f5535c"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  databaseURL: process.env.NEXT_PUBLIC_FIREBASE_DATABASE_URL,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
 // Initialize Firebase
+// Check if the app is already initialized to avoid errors during hot-reloading
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 const auth = getAuth(app);
 const db = getFirestore(app);
