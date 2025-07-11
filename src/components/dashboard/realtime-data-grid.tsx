@@ -7,12 +7,26 @@ import { RefreshCw, AlertTriangle, Download } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
-import { useFirestoreQueryData } from "@tanstack-query-firebase/react";
-import { collection, query, where, orderBy, limit } from "firebase/firestore";
+import { useQuery } from "@tanstack/react-query";
+import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
 
-// This type represents the raw data structure from Firestore
+// This type represents the raw data structure from Firestore for device status
+interface DeviceStatus {
+    id: string; // Firestore document ID
+    deviceId: string;
+    temperature?: number;
+    humidity?: number;
+    waterLeak?: boolean;
+    lastSeen: {
+        seconds: number;
+        nanoseconds: number;
+    } | null;
+    status: 'online' | 'offline'; // And other fields from the 'devices' collection
+}
+
+// This type represents the raw data structure from Firestore for historical data
 interface FirestoreSensorReading {
     deviceId: string;
     temperature?: number;
@@ -37,34 +51,42 @@ const deriveStatus = (data: DisplaySensorData, currentUser: ReturnType<typeof us
 const MAX_DEVICES_TO_DISPLAY = 10;
 const MAX_HISTORICAL_READINGS = 20;
 
+
+// Function to fetch latest readings from the 'devices' collection
+const fetchLatestReadings = async (): Promise<DeviceStatus[]> => {
+    const devicesRef = collection(db, 'devices');
+    const q = query(devicesRef, orderBy('lastSeen', 'desc'), limit(MAX_DEVICES_TO_DISPLAY));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeviceStatus));
+};
+
+// Function to fetch historical data from the 'sensorData' collection
+const fetchHistoricalReadings = async (): Promise<FirestoreSensorReading[]> => {
+    const historicalDataRef = collection(db, 'sensorData');
+    const q = query(historicalDataRef, orderBy('serverTimestamp', 'desc'), limit(MAX_HISTORICAL_READINGS * MAX_DEVICES_TO_DISPLAY));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => doc.data() as FirestoreSensorReading);
+};
+
+
 export function RealtimeDataGrid() {
   const [sensors, setSensors] = useState<DisplaySensorData[]>([]);
   const { currentUser, addNotification } = useUser();
   const { toast } = useToast();
 
-  const devicesRef = collection(db, 'devices');
-  const devicesQuery = query(devicesRef, orderBy('lastSeen', 'desc'), limit(MAX_DEVICES_TO_DISPLAY));
+  const { data: latestDeviceReadings, isLoading: isLoadingDevices, refetch: refetchDevices } = useQuery<DeviceStatus[]>({
+    queryKey: ['latestReadings'],
+    queryFn: fetchLatestReadings,
+    enabled: !!currentUser?.isLoggedIn,
+    refetchInterval: 30000, // Refetch every 30 seconds
+  });
 
-  const { data: latestDeviceReadings, isLoading: isLoadingDevices, refetch } = useFirestoreQueryData(
-    ['latestReadings'],
-    devicesQuery,
-    { subscribe: true },
-    {
-      enabled: !!currentUser?.isLoggedIn,
-    }
-  );
-
-  const historicalDataRef = collection(db, 'sensorData');
-  const historicalQuery = query(historicalDataRef, orderBy('serverTimestamp', 'desc'), limit(MAX_HISTORICAL_READINGS * MAX_DEVICES_TO_DISPLAY));
-
-  const { data: historicalReadings, isLoading: isLoadingHistorical } = useFirestoreQueryData<FirestoreSensorReading>(
-    ['historicalReadings'],
-    historicalQuery,
-    { subscribe: true },
-    {
-      enabled: !!currentUser?.isLoggedIn,
-    }
-  );
+  const { data: historicalReadings, isLoading: isLoadingHistorical, refetch: refetchHistorical } = useQuery<FirestoreSensorReading[]>({
+    queryKey: ['historicalReadings'],
+    queryFn: fetchHistoricalReadings,
+    enabled: !!currentUser?.isLoggedIn,
+    refetchInterval: 60000, // Refetch every minute
+  });
 
 
   useEffect(() => {
@@ -104,8 +126,12 @@ export function RealtimeDataGrid() {
 
     setSensors(transformedSensors);
 
-  }, [latestDeviceReadings, historicalReadings, currentUser]);
+  }, [latestDeviceReadings, historicalReadings, currentUser, addNotification]);
   
+  const handleRefresh = () => {
+    refetchDevices();
+    refetchHistorical();
+  };
 
   const handleSendCommand = async (deviceId: string, command: 'ON' | 'OFF') => {
     if (!currentUser?.subscription.canControlDevice) {
@@ -189,7 +215,7 @@ export function RealtimeDataGrid() {
             <Download className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
             Download CSV
         </Button>
-        <Button onClick={() => refetch()} variant="outline" disabled={isLoading}>
+        <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
           Refresh Data
         </Button>

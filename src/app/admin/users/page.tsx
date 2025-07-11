@@ -1,6 +1,6 @@
 
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Search, Edit3, Trash2, CheckCircle, XCircle, Clock, BellPlus, Bluetooth, Droplets, Download, UsersIcon, UserCheck, UserCog } from "lucide-react";
@@ -46,8 +46,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUser } from "@/context/user-context"; 
 import { PLAN_DETAILS } from "@/context/user-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useFirestoreQuery } from "@tanstack-query-firebase/react";
-import { collection, query, doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { useQuery } from "@tanstack/react-query";
+import { collection, query, doc, updateDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -71,6 +71,14 @@ export interface AdminUser {
 }
 
 
+const fetchUsers = async (): Promise<AdminUser[]> => {
+    const usersRef = collection(db, "users");
+    const usersQuery = query(usersRef);
+    const querySnapshot = await getDocs(usersQuery);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminUser));
+};
+
+
 const subscriptionOptions = Object.keys(PLAN_DETAILS) as Array<keyof typeof PLAN_DETAILS>;
 const statusOptions: AdminUser["status"][] = ["pending", "active", "rejected"];
 
@@ -85,11 +93,9 @@ export default function AdminUsersPage() {
   const { toast } = useToast();
   const userContext = useUser(); 
 
-  const usersRef = collection(db, "users");
-  const usersQuery = query(usersRef);
-  const { data: users, isLoading: isLoadingUsers } = useFirestoreQuery(['users'], usersQuery, {
-    select: (snapshot) => snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminUser)),
-    subscribe: true,
+  const { data: users, isLoading: isLoadingUsers, refetch } = useQuery<AdminUser[]>({
+    queryKey: ['users'],
+    queryFn: fetchUsers,
   });
 
 
@@ -124,7 +130,9 @@ export default function AdminUsersPage() {
       const dataToUpdate: Partial<AdminUser> = { ...currentUserData };
       delete dataToUpdate.id; // Don't save the document id inside the document
 
-      await updateDoc(userDocRef, dataToUpdate);
+      await updateDoc(userDocRef, dataToUpdate as any);
+      
+      refetch(); // Refetch the users list
 
       toast({ title: "User Updated", description: `User ${currentUserData.firstName} ${currentUserData.lastName} has been updated.` });
       setIsUserModalOpen(false);
@@ -142,6 +150,7 @@ export default function AdminUsersPage() {
     // For now, we will just delete the Firestore document.
     try {
       await deleteDoc(doc(db, "users", userId));
+      refetch();
       toast({ title: "User Deleted", description: "The user has been removed from Firestore.", variant: "destructive" });
     } catch (error) {
       console.error("Error deleting user:", error);
