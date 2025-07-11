@@ -19,15 +19,19 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, Home, LayoutDashboard, UserPlus, Settings, Briefcase, Info } from 'lucide-react';
+import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, Home, LayoutDashboard, UserPlus, Settings, Briefcase, Info, Languages, Moon, Sun } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUser } from '@/context/user-context';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { usePathname } from 'next/navigation'; 
 import { Logo } from '../icons/logo';
+import { useLanguage } from '@/context/language-context';
+import { useTheme } from "next-themes"
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -36,6 +40,8 @@ interface MainLayoutProps {
 export function MainLayout({ children }: MainLayoutProps) {
   const isMobile = useIsMobile();
   const pathname = usePathname();
+  const { setTheme } = useTheme();
+  const { language, setLanguage } = useLanguage();
   const { 
     currentUser, 
     logoutUser, 
@@ -86,7 +92,38 @@ export function MainLayout({ children }: MainLayoutProps) {
           )}
 
 
-          <div className="flex items-center gap-2 md:gap-3">
+          <div className="flex items-center gap-1 md:gap-2">
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <Languages className="h-5 w-5" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuLabel>Select Language</DropdownMenuLabel>
+                    <DropdownMenuRadioGroup value={language} onValueChange={(value) => setLanguage(value as 'en' | 'ar' | 'fr')}>
+                        <DropdownMenuRadioItem value="en">English</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="ar">العربية</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="fr">Français</DropdownMenuRadioItem>
+                    </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+            </DropdownMenu>
+
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                        <Sun className="h-[1.2rem] w-[1.2rem] rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+                        <Moon className="absolute h-[1.2rem] w-[1.2rem] rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
+                        <span className="sr-only">Toggle theme</span>
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onClick={() => setTheme("light")}>Light</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("dark")}>Dark</DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setTheme("system")}>System</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+            
             {!isLandingPage && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

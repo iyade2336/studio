@@ -11,10 +11,14 @@ import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "@/context/language-context";
+import { translations } from "@/lib/translations";
 
 export default function DashboardPage() {
   const { currentUser, isLoading: isUserLoading } = useUser(); 
   const router = useRouter();
+  const { language } = useLanguage();
+  const t = translations[language];
 
   useEffect(() => {
     if (!isUserLoading && !currentUser?.isLoggedIn) {
@@ -26,21 +30,21 @@ export default function DashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
-        <p className="ml-4 text-lg">Loading Dashboard...</p>
+        <p className="ml-4 text-lg">{t.dashboard.loading}</p>
       </div>
     );
   }
 
-  const userName = currentUser?.name || "User";
-  const subscriptionPlan = currentUser?.subscription.planName || "No Plan";
+  const userName = currentUser?.name || t.dashboard.guest;
+  const subscriptionPlan = currentUser?.subscription.planName || t.dashboard.noPlan;
   
   const alertsCount = 0; // Placeholder for future alert system integration
 
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
-        title={`Welcome, ${userName}!`}
-        description={currentUser?.isLoggedIn ? `You are currently on the ${subscriptionPlan} plan.` : "Please log in or register to manage your devices."}
+        title={`${t.dashboard.welcome}, ${userName}!`}
+        description={currentUser?.isLoggedIn ? `${t.dashboard.currentPlan} ${subscriptionPlan}.` : t.dashboard.loginPrompt}
       />
 
       {alertsCount > 0 && (
@@ -49,18 +53,18 @@ export default function DashboardPage() {
             <div className="flex items-center">
               <AlertTriangle className="h-6 w-6 text-yellow-600 dark:text-yellow-400 mr-3" />
               <CardTitle className="text-yellow-700 dark:text-yellow-300">
-                {alertsCount} Active Alert{alertsCount > 1 ? 's' : ''}
+                {alertsCount} {t.dashboard.activeAlerts(alertsCount)}
               </CardTitle>
             </div>
           </CardHeader>
           <CardContent>
             <p className="text-yellow-600 dark:text-yellow-400">
-              Some of your devices require attention. Please check their status below.
+              {t.dashboard.attentionNeeded}
             </p>
             <div className="mt-3">
               <Button variant="outline" size="sm" asChild>
                 <Link href="/dashboard#alerts-section"> 
-                  <span className="flex items-center">View Alerts</span>
+                  <span className="flex items-center">{t.dashboard.viewAlerts}</span>
                 </Link>
               </Button>
             </div>
@@ -70,7 +74,7 @@ export default function DashboardPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle>Real-time Sensor Data &amp; Analysis</CardTitle>
+          <CardTitle>{t.dashboard.realtimeDataTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           <RealtimeDataGrid />
@@ -82,7 +86,7 @@ export default function DashboardPage() {
           <CardHeader>
             <CardTitle className="flex items-center">
               <Info className="mr-2 h-5 w-5 text-accent" />
-              Quick Actions
+              {t.dashboard.quickActions}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -90,7 +94,7 @@ export default function DashboardPage() {
               <Link href="/troubleshoot">
                 <span className="flex items-center w-full">
                   <MonitorSmartphone className="mr-2 h-4 w-4" />
-                  AI Troubleshooter
+                  {t.dashboard.aiTroubleshooter}
                 </span>
               </Link>
             </Button>
@@ -98,7 +102,7 @@ export default function DashboardPage() {
               <Link href="/issues">
                  <span className="flex items-center w-full">
                    <Wrench className="mr-2 h-4 w-4" />
-                   View Common Issues
+                   {t.dashboard.viewCommonIssues}
                  </span>
               </Link>
             </Button>
@@ -106,7 +110,7 @@ export default function DashboardPage() {
               <Link href="/subscriptions">
                  <span className="flex items-center w-full">
                    <CreditCard className="mr-2 h-4 w-4" />
-                   Manage Subscription
+                   {t.dashboard.manageSubscription}
                  </span>
               </Link>
             </Button>
@@ -115,17 +119,17 @@ export default function DashboardPage() {
          <Card className="bg-primary/10 border-primary/30 hover:shadow-lg transition-shadow">
           <CardHeader>
             <CardTitle className="flex items-center text-primary">
-              Need help?
+              {t.dashboard.needHelp}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-sm text-foreground mb-4">
-              If you're experiencing issues or have questions, our AI assistant can help, or you can browse common solutions.
+              {t.dashboard.needHelpDescription}
             </p>
             <Button className="w-full" asChild>
               <Link href="/troubleshoot">
                  <span className="flex items-center justify-center w-full">
-                    Ask AI Assistant
+                    {t.dashboard.askAiAssistant}
                  </span>
               </Link>
             </Button>

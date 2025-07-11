@@ -6,7 +6,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { MainLayout } from '@/components/layout/main-layout';
 import { AdminAuthProvider } from '@/context/admin-auth-context';
 import { UserProvider } from '@/context/user-context';
-import { QueryProvider } from '@/components/providers/query-provider'; // Added import
+import { QueryProvider } from '@/components/providers/query-provider'; 
+import { LanguageProvider } from '@/context/language-context';
+import { ThemeProvider } from '@/components/providers/theme-provider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -31,16 +33,25 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <QueryProvider>
-          <AdminAuthProvider>
-            <UserProvider>
-              <MainLayout>
-                {children}
-              </MainLayout>
-            </UserProvider>
-          </AdminAuthProvider>
-        </QueryProvider>
-        <Toaster />
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <QueryProvider>
+            <LanguageProvider>
+              <AdminAuthProvider>
+                <UserProvider>
+                  <MainLayout>
+                    {children}
+                  </MainLayout>
+                </UserProvider>
+              </AdminAuthProvider>
+            </LanguageProvider>
+          </QueryProvider>
+          <Toaster />
+        </ThemeProvider>
       </body>
     </html>
   );

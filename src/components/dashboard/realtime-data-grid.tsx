@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { SensorCard, type SensorData as DisplaySensorData } from "./sensor-card"; 
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertTriangle, Download } from "lucide-react";
@@ -11,6 +11,8 @@ import { useQuery } from "@tanstack/react-query";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
+import { AutomaticAiAnalysis } from "./automatic-ai-analysis";
+import type { TroubleshootSensorDataOutput } from "@/ai/flows/troubleshoot-sensor-data";
 
 // This type represents the raw data structure from Firestore for device status
 interface DeviceStatus {
@@ -71,6 +73,7 @@ const fetchHistoricalReadings = async (): Promise<FirestoreSensorReading[]> => {
 
 export function RealtimeDataGrid() {
   const [sensors, setSensors] = useState<DisplaySensorData[]>([]);
+  const [problematicSensor, setProblematicSensor] = useState<DisplaySensorData | null>(null);
   const { currentUser, addNotification } = useUser();
   const { toast } = useToast();
 
@@ -91,6 +94,8 @@ export function RealtimeDataGrid() {
 
   useEffect(() => {
     if (!latestDeviceReadings || !currentUser) return;
+
+    let foundProblematicSensor: DisplaySensorData | null = null;
 
     const transformedSensors = latestDeviceReadings.map(device => {
         const displayData: DisplaySensorData = {
@@ -113,6 +118,10 @@ export function RealtimeDataGrid() {
         };
         displayData.status = deriveStatus(displayData, currentUser);
         
+        if ((displayData.status === 'danger' || displayData.status === 'warning') && !foundProblematicSensor) {
+            foundProblematicSensor = displayData;
+        }
+
         // Auto-shutdown warning logic
         if (currentUser.subscription.hasAutoShutdownFeature) {
           if (displayData.waterLeak) {
@@ -125,6 +134,8 @@ export function RealtimeDataGrid() {
     }).slice(0, currentUser.subscription.maxDevices);
 
     setSensors(transformedSensors);
+    setProblematicSensor(foundProblematicSensor);
+
 
   }, [latestDeviceReadings, historicalReadings, currentUser, addNotification]);
   
@@ -211,18 +222,21 @@ export function RealtimeDataGrid() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-4">
-        <Button onClick={downloadCSV} variant="outline" disabled={isLoading || sensors.length === 0 || !currentUser.subscription.canExportCsv} title={!currentUser.subscription.canExportCsv ? "CSV Export not available on your plan" : ""}>
-            <Download className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Download CSV
-        </Button>
-        <Button onClick={handleRefresh} variant="outline" disabled={isLoading}>
-          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-          Refresh Data
-        </Button>
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-lg font-medium">Device Overview</h3>
+        <div className="flex items-center gap-2">
+            <Button onClick={downloadCSV} variant="outline" size="sm" disabled={isLoading || sensors.length === 0 || !currentUser.subscription.canExportCsv} title={!currentUser.subscription.canExportCsv ? "CSV Export not available on your plan" : ""}>
+                <Download className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+                Download CSV
+            </Button>
+            <Button onClick={handleRefresh} variant="outline" size="sm" disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh Data
+            </Button>
+        </div>
       </div>
       {sensors.length === 0 && !isLoading ? (
-         <div className="text-center py-8 text-muted-foreground">
+         <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
           <p>No sensor data available for your allowed devices ({currentUser.subscription.maxDevices}).</p>
           <p className="text-sm">Ensure your Arduino devices are connected and sending data.</p>
         </div>
@@ -236,6 +250,12 @@ export function RealtimeDataGrid() {
             />
           ))}
           { Array(Math.max(0, currentUser.subscription.maxDevices - sensors.length)).fill(null).slice(0, MAX_DEVICES_TO_DISPLAY - sensors.length).map((_,i) => <EmptyDeviceSlot key={`empty-${i}`} />)}
+        </div>
+      )}
+
+      {problematicSensor && currentUser.subscription.canAccessAiTroubleshooter && (
+        <div className="mt-8">
+            <AutomaticAiAnalysis sensorData={problematicSensor} />
         </div>
       )}
     </div>
