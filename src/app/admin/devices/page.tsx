@@ -1,4 +1,6 @@
 
+"use client";
+
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
 import { PlusCircle, Search, Download, HardDrive, Wifi, WifiOff } from "lucide-react";
@@ -187,4 +189,3 @@ export default function AdminDevicesPage() {
     </div>
   );
 }
-
