@@ -1,3 +1,4 @@
+
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
@@ -14,6 +15,12 @@ const firebaseConfig = {
   messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
+
+// Add a check for missing environment variables
+if (!firebaseConfig.apiKey) {
+  throw new Error("Missing Firebase API Key. Please make sure you have a .env.local file with NEXT_PUBLIC_FIREBASE_API_KEY defined.");
+}
+
 
 // Initialize Firebase
 // Check if the app is already initialized to avoid errors during hot-reloading
