@@ -23,7 +23,7 @@ import {
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, Home, LayoutDashboard, UserPlus, Settings, Briefcase, Info, Languages, Moon, Sun } from 'lucide-react';
+import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, Home, LayoutDashboard, UserPlus, Settings, Briefcase, Info, Languages, Moon, Sun, ShieldCheck } from 'lucide-react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useUser } from '@/context/user-context';
 import { cn } from '@/lib/utils';
@@ -32,6 +32,7 @@ import { usePathname } from 'next/navigation';
 import { Logo } from '../icons/logo';
 import { useLanguage } from '@/context/language-context';
 import { useTheme } from "next-themes"
+import { useAdminAuth } from '@/context/admin-auth-context';
 
 interface MainLayoutProps {
   children: ReactNode;
@@ -44,7 +45,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const { language, setLanguage, direction } = useLanguage();
   const { 
     currentUser, 
-    logoutUser, 
+    logoutUser: regularUserLogout,
     notifications, 
     unreadNotificationCount, 
     markNotificationAsRead, 
@@ -52,6 +53,7 @@ export function MainLayout({ children }: MainLayoutProps) {
     clearNotifications,
     getSubscriptionDaysRemaining,
   } = useUser();
+  const { isAdmin, logout: adminLogout } = useAdminAuth();
 
   const isLandingPage = pathname === '/';
   const isAdminSection = pathname.startsWith('/admin');
@@ -186,7 +188,26 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-64">
-                {currentUser?.isLoggedIn ? (
+                {isAdmin ? (
+                  <>
+                    <DropdownMenuLabel>
+                      <p className="font-medium flex items-center"><ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Administrator</p>
+                      <p className="text-xs text-muted-foreground">admin@admin.com</p>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                      <Link href="/admin">
+                        <LayoutDashboard className="mr-2 h-4 w-4" />
+                        Admin Overview
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onClick={adminLogout} className="text-destructive hover:!text-destructive">
+                      <LogOut className="mr-2 h-4 w-4" />
+                      Logout
+                    </DropdownMenuItem>
+                  </>
+                ) : currentUser?.isLoggedIn ? (
                   <>
                     <DropdownMenuLabel>
                       <p className="font-medium">{currentUser.name}</p>
@@ -216,7 +237,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                        </p>
                     </DropdownMenuItem>
                      <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={logoutUser} className="text-destructive hover:!text-destructive">
+                    <DropdownMenuItem onClick={regularUserLogout} className="text-destructive hover:!text-destructive">
                       <LogOut className="mr-2 h-4 w-4" />
                       Logout
                     </DropdownMenuItem>
