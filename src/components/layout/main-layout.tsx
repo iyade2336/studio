@@ -41,7 +41,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const { setTheme } = useTheme();
-  const { language, setLanguage } = useLanguage();
+  const { language, setLanguage, direction } = useLanguage();
   const { 
     currentUser, 
     logoutUser, 
@@ -62,13 +62,16 @@ export function MainLayout({ children }: MainLayoutProps) {
   return (
     <SidebarProvider defaultOpen={sidebarDefaultOpen} collapsible={isMobile ? "offcanvas" : "icon"}>
       {(!isLandingPage || isMobile) && ( 
-        <Sidebar variant="sidebar" side="left" className="border-r border-sidebar-border">
+        <Sidebar variant={isAdminSection ? "inset" : "sidebar"} side="left" className={cn(isAdminSection ? 'bg-card text-card-foreground' : 'border-r border-sidebar-border')}>
           <SidebarContent>
             <SidebarNav />
           </SidebarContent>
         </Sidebar>
       )}
-      <SidebarInset className={cn(isLandingPage && !isMobile && "md:ml-0")}> 
+      <SidebarInset className={cn(
+          isLandingPage && !isMobile && "md:ml-0",
+          isAdminSection && "ml-[var(--sidebar-width-icon)]"
+        )}> 
         <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 bg-background/80 backdrop-blur-sm border-b">
           <div className="flex items-center">
             {(isLandingPage && !isMobile) ? (
@@ -238,10 +241,13 @@ export function MainLayout({ children }: MainLayoutProps) {
             {isLandingPage && isMobile && <SidebarTrigger />} 
           </div>
         </header>
-        <main className="flex-1 p-4 sm:p-6 md:p-8 bg-background"> 
+        <main className={cn(
+            "flex-1 p-4 sm:p-6 md:p-8",
+            isAdminSection ? "bg-transparent" : "bg-background"
+          )}> 
           {children}
         </main>
-        <footer className="py-8 px-6 border-t text-center text-sm text-muted-foreground bg-card">
+        <footer className={cn("py-8 px-6 border-t text-center text-sm text-muted-foreground", isAdminSection ? 'bg-transparent' : 'bg-card')}>
           <div className="container mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 text-left md:text-center">
             <div>
               <Logo className="h-10 mb-2"/>

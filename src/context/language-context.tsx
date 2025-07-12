@@ -1,6 +1,6 @@
 
 "use client";
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, type ReactNode, useCallback } from 'react';
 
 type Language = 'en' | 'ar' | 'fr';
 
@@ -13,23 +13,28 @@ interface LanguageContextType {
 const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
-  const [language, setLanguage] = useState<Language>('en');
+  const [language, setLanguageState] = useState<Language>('en');
   const [direction, setDirection] = useState<'ltr' | 'rtl'>('ltr');
+
+  const setLanguage = useCallback((lang: Language) => {
+    setLanguageState(lang);
+    localStorage.setItem('iot-guardian-language', lang);
+    const newDirection = lang === 'ar' ? 'rtl' : 'ltr';
+    setDirection(newDirection);
+    document.documentElement.dir = newDirection;
+    document.documentElement.lang = lang;
+  }, []);
+
 
   useEffect(() => {
     const storedLang = localStorage.getItem('iot-guardian-language') as Language | null;
     if (storedLang && ['en', 'ar', 'fr'].includes(storedLang)) {
       setLanguage(storedLang);
+    } else {
+      setLanguage('en'); // Default to english
     }
-  }, []);
+  }, [setLanguage]);
 
-  useEffect(() => {
-    localStorage.setItem('iot-guardian-language', language);
-    const newDirection = language === 'ar' ? 'rtl' : 'ltr';
-    setDirection(newDirection);
-    document.documentElement.dir = newDirection;
-    document.documentElement.lang = language;
-  }, [language]);
 
   return (
     <LanguageContext.Provider value={{ language, setLanguage, direction }}>

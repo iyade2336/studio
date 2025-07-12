@@ -40,16 +40,6 @@
     --chart-3: 28 100% 53%; /* Orange */
     --chart-4: 300 81% 54%; /* Magenta */
     --chart-5: 50 96% 54%;  /* Yellow */
-
-    /* Sidebar specific theme */
-    --sidebar-background: 224 71.4% 4.1%; /* Dark Slate Blue */
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 158 75% 42%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 224 71% 10%;
-    --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 224 71% 10%;
-    --sidebar-ring: 158 75% 42%;
   }
 
   .dark {
@@ -87,18 +77,61 @@
     --chart-3: 28 100% 53%;
     --chart-4: 300 81% 54%;
     --chart-5: 50 96% 54%;
-
-    /* Sidebar dark theme */
-    --sidebar-background: 224 71.4% 4.1%; 
-    --sidebar-foreground: 0 0% 90%;
-    --sidebar-primary: 158 75% 48%;
-    --sidebar-primary-foreground: 233 64% 10%;
-    --sidebar-accent: 224 71% 10%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 224 71% 15%;
-    --sidebar-ring: 158 75% 50%;
   }
 }
+
+/* ============================================= */
+/* =========== Admin-specific Theme ============ */
+/* ============================================= */
+
+@layer base {
+  .admin-dashboard {
+    /* A dark, professional theme for the admin area */
+    --background: 220 15% 15%; /* Dark cool gray */
+    --foreground: 210 20% 95%; /* Light gray */
+
+    --card: 220 15% 20%;
+    --card-foreground: 210 20% 95%;
+
+    --popover: 220 15% 18%;
+    --popover-foreground: 210 20% 95%;
+
+    --primary: 260 85% 70%; /* Vibrant Purple */
+    --primary-foreground: 210 20% 98%;
+
+    --secondary: 220 15% 30%;
+    --secondary-foreground: 210 20% 95%;
+
+    --muted: 220 15% 25%;
+    --muted-foreground: 220 10% 60%;
+
+    --accent: 260 85% 75%; /* Lighter purple for hover states */
+    --accent-foreground: 210 20% 98%;
+
+    --destructive: 0 72% 51%; /* Bright Red */
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 220 15% 30%;
+    --input: 220 15% 25%;
+    --ring: 260 85% 75%;
+
+    --chart-1: 260 85% 70%;
+    --chart-2: 180 80% 45%; /* Cyan */
+  }
+
+  /*
+    The .dark modifier for admin is for when the system's dark mode is on.
+    We can make it slightly different or keep it the same as the default admin theme.
+    For this case, we'll keep it the same since the admin theme is already dark.
+  */
+  .dark .admin-dashboard {
+     --background: 220 15% 12%; /* Even darker background */
+     --card: 220 15% 18%;
+     --border: 220 15% 25%;
+     --input: 220 15% 22%;
+  }
+}
+
 
 @layer base {
   * {

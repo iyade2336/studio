@@ -6,6 +6,7 @@ import { useEffect } from 'react';
 import { useAdminAuth } from '@/context/admin-auth-context';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -19,7 +20,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-background text-foreground admin-dashboard">
         <Loader2 className="h-16 w-16 animate-spin text-primary" />
         <p className="ml-4 text-lg">Loading Admin Area...</p>
       </div>
@@ -29,11 +30,11 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   if (!isAdmin) {
     // This is a fallback, useEffect should handle redirection
     return (
-       <div className="flex items-center justify-center min-h-screen">
+       <div className="flex items-center justify-center min-h-screen bg-background text-foreground admin-dashboard">
         <p className="text-lg text-destructive">Redirecting to login...</p>
       </div>
     );
   }
 
-  return <>{children}</>;
+  return <div className="admin-dashboard">{children}</div>;
 }
