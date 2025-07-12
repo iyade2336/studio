@@ -210,7 +210,7 @@ export function RealtimeDataGrid() {
   }
 
   if (isLoading && sensors.length === 0) {
-    const skeletonCount = Math.max(0, Math.min(currentUser.subscription.maxDevices, 4));
+    const skeletonCount = Math.max(0, Math.min(currentUser?.subscription?.maxDevices || 0, 4));
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
         {[...Array(skeletonCount)].map((_, i) => (
@@ -289,3 +289,5 @@ function EmptyDeviceSlot() {
       </div>
     )
   }
+
+    
