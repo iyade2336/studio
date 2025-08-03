@@ -28,8 +28,8 @@ export default function GlobalError({
           digest: error.digest,
           timestamp: serverTimestamp(),
           userId: currentUser?.uid || 'guest',
-          path: window.location.pathname,
-          userAgent: navigator.userAgent,
+          path: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
+          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
         });
         console.error("Error logged to Firestore:", error);
       } catch (loggingError) {

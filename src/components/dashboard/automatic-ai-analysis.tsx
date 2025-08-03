@@ -24,9 +24,10 @@ const useTypingEffect = (text: string, speed = 50) => {
         if (text) {
             let i = 0;
             const intervalId = setInterval(() => {
-                setDisplayedText(prev => prev + text.charAt(i));
-                i++;
-                if (i >= text.length) {
+                if (i < text.length) {
+                    setDisplayedText(prev => prev + text.charAt(i));
+                    i++;
+                } else {
                     clearInterval(intervalId);
                 }
             }, speed / 2); // Adjust speed for a more natural feel
@@ -51,7 +52,7 @@ export function AutomaticAiAnalysis({ sensorData }: AutomaticAiAnalysisProps) {
     useEffect(() => {
         const analyzeData = async () => {
             if (!currentUser?.subscription.canAccessAiTroubleshooter) {
-                setError("AI Troubleshooting is not available on your current subscription plan.");
+                setError(t.accessDenied);
                 setIsLoading(false);
                 return;
             }
@@ -84,14 +85,15 @@ export function AutomaticAiAnalysis({ sensorData }: AutomaticAiAnalysisProps) {
 
             } catch (e) {
                 console.error("Error calling AI flow:", e);
-                setError(e instanceof Error ? e.message : "An unknown error occurred.");
+                setError(e instanceof Error ? e.message : t.unknownError);
             } finally {
                 setIsLoading(false);
             }
         };
 
         analyzeData();
-    }, [sensorData.id, currentUser?.subscription.canAccessAiTroubleshooter, currentUser]); // Re-run analysis if the problematic sensor changes or user changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sensorData.id, currentUser]); // Re-run analysis if the problematic sensor changes or user changes
 
     return (
         <Card className="shadow-lg bg-gradient-to-br from-background to-secondary/30 border-l-4 border-primary">
