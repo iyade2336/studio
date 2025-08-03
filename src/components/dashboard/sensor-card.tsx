@@ -21,7 +21,7 @@ export interface SensorData {
 
 interface SensorCardProps {
   sensor: SensorData;
-  onSendCommand?: (deviceId: string, command: 'ON' | 'OFF') => void;
+  onSendCommand: (deviceId: string, command: 'ON' | 'OFF') => void;
 }
 
 export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
@@ -57,7 +57,7 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
     }
   }
 
-  const canControl = currentUser?.subscription.canControlDevice && onSendCommand;
+  const canControl = currentUser?.subscription.canControlDevice;
 
   return (
     <Card className={cn("shadow-lg hover:shadow-xl transition-shadow duration-300 flex flex-col", getBorderColor(), "border-l-4")}>
@@ -151,3 +151,5 @@ export function SensorCard({ sensor, onSendCommand }: SensorCardProps) {
     </Card>
   );
 }
+
+    

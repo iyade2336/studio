@@ -157,7 +157,7 @@ export function RealtimeDataGrid() {
       });
       if (!response.ok) throw new Error('Failed to send command');
       const result = await response.json();
-      toast({ title: "Command Sent", description: `Command ${command} sent to ${deviceId}. Status: ${result.status}` });
+      toast({ title: "Command Sent", description: `Command ${command} sent to ${deviceId}. Status: ${result.message}` });
       setSensors(prevSensors => prevSensors.map(s => s.id === deviceId ? {...s, deviceState: command} : s));
     } catch (err) {
       toast({ title: "Command Error", description: (err instanceof Error ? err.message : "Unknown error"), variant: "destructive" });
@@ -208,9 +208,10 @@ export function RealtimeDataGrid() {
   if (!currentUser || !currentUser.isLoggedIn) {
     return null; // The parent page will handle redirection
   }
+  
+  const skeletonCount = currentUser?.subscription?.maxDevices > 0 ? Math.min(currentUser.subscription.maxDevices, MAX_DEVICES_TO_DISPLAY) : 0;
 
   if (isLoading && sensors.length === 0) {
-    const skeletonCount = Math.max(0, Math.min(currentUser?.subscription?.maxDevices || 0, 4));
     return (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
         {[...Array(skeletonCount)].map((_, i) => (
@@ -246,10 +247,14 @@ export function RealtimeDataGrid() {
             <SensorCard 
               key={sensor.id} 
               sensor={sensor} 
-              onSendCommand={currentUser.subscription.canControlDevice ? handleSendCommand : undefined}
+              onSendCommand={handleSendCommand}
             />
           ))}
-          { Array(Math.max(0, currentUser.subscription.maxDevices - sensors.length)).fill(null).slice(0, MAX_DEVICES_TO_DISPLAY - sensors.length).map((_,i) => <EmptyDeviceSlot key={`empty-${i}`} />)}
+          { currentUser.subscription.maxDevices > sensors.length &&
+            Array(Math.max(0, currentUser.subscription.maxDevices - sensors.length))
+            .fill(null)
+            .slice(0, MAX_DEVICES_TO_DISPLAY - sensors.length)
+            .map((_,i) => <EmptyDeviceSlot key={`empty-${i}`} />)}
         </div>
       )}
 
@@ -289,5 +294,7 @@ function EmptyDeviceSlot() {
       </div>
     )
   }
+
+    
 
     
