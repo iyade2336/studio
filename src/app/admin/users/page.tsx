@@ -174,7 +174,9 @@ export default function AdminUsersPage() {
       return;
     }
     
-    userContext.addNotification(`Admin message for ${notificationTargetUser.first_name}: ${notificationMessage}`, 'admin');
+    // In a real app, this would call an API to send a push notification or email.
+    // For this demo, we'll just show a toast.
+    console.log(`Sending notification to ${notificationTargetUser.email}: ${notificationMessage}`);
 
     toast({ title: "Notification Sent", description: `Message sent to ${notificationTargetUser.first_name} ${notificationTargetUser.last_name}.` });
     setIsNotificationModalOpen(false);
@@ -480,3 +482,6 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+
+    
