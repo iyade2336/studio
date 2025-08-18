@@ -104,61 +104,60 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        // User is signed in, see docs for a list of available properties
-        // https://firebase.google.com/docs/reference/js/firebase.User
+        // User is signed in, get their data from Firestore.
         const userDocRef = doc(db, "users", firebaseUser.uid);
-        
-        // Set up a real-time listener for the user document
-        const unsubscribeDoc = onSnapshot(userDocRef, (docSnap) => {
-          if (docSnap.exists()) {
-            const userDataFromDb = docSnap.data();
+        try {
+            const docSnap = await getDoc(userDocRef);
+            if (docSnap.exists()) {
+                const userDataFromDb = docSnap.data();
 
-            if (userDataFromDb.status !== 'active') {
-                // If user is not active, log them out from the app state
-                signOut(auth); // Sign out from firebase auth
+                if (userDataFromDb.status !== 'active') {
+                    signOut(auth);
+                    setCurrentUser(MOCK_USER_LOGGED_OUT);
+                    setIsLoading(false);
+                    router.push('/auth/login');
+                    return;
+                }
+
+                const planName = userDataFromDb.subscription;
+                const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
+
+                const userToSet: User = {
+                  id: docSnap.id,
+                  uid: firebaseUser.uid,
+                  isLoggedIn: true,
+                  name: `${userDataFromDb.firstName} ${userDataFromDb.lastName}`,
+                  firstName: userDataFromDb.firstName,
+                  lastName: userDataFromDb.lastName,
+                  email: userDataFromDb.email,
+                  whatsappNumber: userDataFromDb.whatsappNumber,
+                  companyName: userDataFromDb.companyName,
+                  status: userDataFromDb.status,
+                  allowBluetoothControlFeatures: userDataFromDb.allowBluetoothControlFeatures,
+                  allowWaterLeakConfigFeatures: userDataFromDb.allowWaterLeakConfigFeatures,
+                  subscription: {
+                    planName: planName,
+                    expiryDate: userDataFromDb.subscriptionExpiryDate || new Date().toISOString(),
+                    maxDevices: userDataFromDb.allowedDevices ?? planDetails.maxDevices ?? 0,
+                    canControlDevice: planDetails.canControlDevice ?? false,
+                    canExportCsv: planDetails.canExportCsv ?? false,
+                    hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
+                    canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
+                  },
+                };
+                setCurrentUser(userToSet);
+            } else {
+                signOut(auth);
                 setCurrentUser(MOCK_USER_LOGGED_OUT);
-                setIsLoading(false);
-                // The login form itself will now handle showing the specific toast message.
-                // This avoids double-toasting or showing a toast when the app loads.
-                router.push('/auth/login');
-                return;
             }
-
-            const planName = userDataFromDb.subscription;
-            const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
-
-            const userToSet: User = {
-              id: docSnap.id,
-              uid: firebaseUser.uid,
-              isLoggedIn: true,
-              name: `${userDataFromDb.firstName} ${userDataFromDb.lastName}`,
-              firstName: userDataFromDb.firstName,
-              lastName: userDataFromDb.lastName,
-              email: userDataFromDb.email,
-              whatsappNumber: userDataFromDb.whatsappNumber,
-              companyName: userDataFromDb.companyName,
-              status: userDataFromDb.status,
-              allowBluetoothControlFeatures: userDataFromDb.allowBluetoothControlFeatures,
-              allowWaterLeakConfigFeatures: userDataFromDb.allowWaterLeakConfigFeatures,
-              subscription: {
-                planName: planName,
-                expiryDate: userDataFromDb.subscriptionExpiryDate || new Date().toISOString(),
-                maxDevices: userDataFromDb.allowedDevices ?? planDetails.maxDevices ?? 0,
-                canControlDevice: planDetails.canControlDevice ?? false,
-                canExportCsv: planDetails.canExportCsv ?? false,
-                hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
-                canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
-              },
-            };
-            setCurrentUser(userToSet);
-          } else {
-            // User exists in Auth but not in Firestore, treat as an error/logged out state
+        } catch (error) {
+            console.error("Error fetching user document:", error);
+            // This could be a permission error. Log out the user to be safe.
             signOut(auth);
             setCurrentUser(MOCK_USER_LOGGED_OUT);
-          }
-          setIsLoading(false);
-        });
-        return () => unsubscribeDoc(); // Cleanup the doc listener when auth state changes
+        } finally {
+            setIsLoading(false);
+        }
 
       } else {
         // User is signed out
@@ -167,7 +166,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }
     });
 
-    // Notifications logic remains the same (can be enhanced with Firestore later)
     const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
     if (storedNotifications) {
       try {
@@ -178,15 +176,13 @@ export function UserProvider({ children }: { children: ReactNode }) {
         setNotifications([]);
     }
 
-    return () => unsubscribeAuth(); // Cleanup the auth listener on component unmount
+    return () => unsubscribeAuth();
   }, [router, toast]);
 
-  // Save notifications to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
-  // This function can be deprecated or used for specific manual login flows if any
   const loginUser = useCallback((userData: User) => {
     setCurrentUser(userData);
   }, []);
