@@ -55,7 +55,7 @@ const publicNavItems: NavItem[] = [
 
 const commonUserNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, userOnly: true },
-  { href: "/troubleshoot", label: "AI Troubleshoot", icon: Bot, userOnly: true },
+  { href: "/troubleshoot", label: "Troubleshoot", icon: Wrench, userOnly: true },
   { href: "/issues", label: "Common Issues", icon: Wrench, userOnly: true },
   { href: "/subscriptions", label: "My Subscription", icon: CreditCard, userOnly: true, sectionBreak: true },
 ];

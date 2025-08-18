@@ -74,7 +74,7 @@ export default function DashboardPage() {
       
       <Card>
         <CardHeader>
-          <CardTitle>{t.dashboard.realtimeDataTitle}</CardTitle>
+          <CardTitle>Device Data</CardTitle>
         </CardHeader>
         <CardContent>
           <RealtimeDataGrid />
@@ -94,7 +94,7 @@ export default function DashboardPage() {
               <Link href="/troubleshoot">
                 <span className="flex items-center w-full">
                   <MonitorSmartphone className="mr-2 h-4 w-4" />
-                  {t.dashboard.aiTroubleshooter}
+                  Troubleshooting
                 </span>
               </Link>
             </Button>
@@ -127,9 +127,9 @@ export default function DashboardPage() {
               {t.dashboard.needHelpDescription}
             </p>
             <Button className="w-full" asChild>
-              <Link href="/troubleshoot">
+              <Link href="/contact">
                  <span className="flex items-center justify-center w-full">
-                    {t.dashboard.askAiAssistant}
+                    Contact Support
                  </span>
               </Link>
             </Button>

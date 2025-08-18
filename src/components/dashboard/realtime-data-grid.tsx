@@ -11,8 +11,6 @@ import { useQuery } from "@tanstack/react-query";
 import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { format } from "date-fns";
-import { AutomaticAiAnalysis } from "./automatic-ai-analysis";
-import type { TroubleshootSensorDataOutput } from "@/ai/flows/troubleshoot-sensor-data";
 
 // This type represents the raw data structure from Firestore for device status
 interface DeviceStatus {
@@ -73,7 +71,6 @@ const fetchHistoricalReadings = async (): Promise<FirestoreSensorReading[]> => {
 
 export function RealtimeDataGrid() {
   const [sensors, setSensors] = useState<DisplaySensorData[]>([]);
-  const [problematicSensor, setProblematicSensor] = useState<DisplaySensorData | null>(null);
   const { currentUser, addNotification } = useUser();
   const { toast } = useToast();
 
@@ -95,8 +92,6 @@ export function RealtimeDataGrid() {
   useEffect(() => {
     if (!latestDeviceReadings || !currentUser) return;
 
-    let foundProblematicSensor: DisplaySensorData | null = null;
-
     const transformedSensors = latestDeviceReadings.map(device => {
         const displayData: DisplaySensorData = {
             id: device.deviceId,
@@ -117,10 +112,6 @@ export function RealtimeDataGrid() {
               .slice(-10), // Limit to last 10 for chart clarity
         };
         displayData.status = deriveStatus(displayData, currentUser);
-        
-        if ((displayData.status === 'danger' || displayData.status === 'warning') && !foundProblematicSensor) {
-            foundProblematicSensor = displayData;
-        }
 
         // Auto-shutdown warning logic
         if (currentUser.subscription.hasAutoShutdownFeature) {
@@ -134,8 +125,6 @@ export function RealtimeDataGrid() {
     }).slice(0, currentUser.subscription.maxDevices);
 
     setSensors(transformedSensors);
-    setProblematicSensor(foundProblematicSensor);
-
 
   }, [latestDeviceReadings, historicalReadings, currentUser, addNotification]);
   
@@ -257,12 +246,6 @@ export function RealtimeDataGrid() {
             .map((_,i) => <EmptyDeviceSlot key={`empty-${i}`} />)}
         </div>
       )}
-
-      {problematicSensor && currentUser.subscription.canAccessAiTroubleshooter && (
-        <div className="mt-8">
-            <AutomaticAiAnalysis sensorData={problematicSensor} />
-        </div>
-      )}
     </div>
   );
 }
@@ -294,7 +277,3 @@ function EmptyDeviceSlot() {
       </div>
     )
   }
-
-    
-
-    
