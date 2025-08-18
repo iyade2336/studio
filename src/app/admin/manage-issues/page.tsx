@@ -2,7 +2,7 @@
 "use client";
 import { PageHeader } from "@/components/shared/page-header";
 import { Button } from "@/components/ui/button";
-import { PlusCircle, Edit3, Trash2, Search, Image as ImageIcon, Download } from "lucide-react";
+import { PlusCircle, Edit3, Trash2, Search, Download } from "lucide-react";
 import {
   Table,
   TableBody,
@@ -12,7 +12,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import NextImage from "next/image"; // Renamed to avoid conflict
+import NextImage from "next/image";
 import {
   Dialog,
   DialogContent,
@@ -26,37 +26,90 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState } from 'react';
 import type { Issue } from "@/components/issues/issue-card"; 
 import { useToast } from "@/hooks/use-toast";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
+const fetchIssues = async (): Promise<Issue[]> => {
+  const response = await fetch('/api/issues');
+  if (!response.ok) throw new Error('Failed to fetch issues');
+  return response.json();
+};
 
-const initialMockIssues: Issue[] = [
-  {
-    id: "1",
-    title: "Sensor Offline",
-    description: "The sensor is not reporting any data to the dashboard.",
-    imageUrl: "https://placehold.co/80x60.png",
-    potentialCauses: ["Power supply issue", "Network connectivity problem"],
-    solutions: ["Check power cable.", "Verify Wi-Fi/GSM connection."],
-  },
-  {
-    id: "2",
-    title: "Inaccurate Temperature",
-    description: "Temperature values are consistently off.",
-    imageUrl: "https://placehold.co/80x60.png",
-    potentialCauses: ["Sensor miscalibration", "Sensor placement issue"],
-    solutions: ["Recalibrate sensor.", "Relocate sensor."],
-  },
-];
+const createIssue = async (issueData: Partial<Issue>): Promise<Issue> => {
+    const response = await fetch('/api/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(issueData),
+    });
+    if (!response.ok) throw new Error('Failed to create issue');
+    return response.json();
+};
+
+const updateIssue = async (issueData: Issue): Promise<Issue> => {
+    const response = await fetch(`/api/issues/${issueData.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(issueData),
+    });
+    if (!response.ok) throw new Error('Failed to update issue');
+    return response.json();
+};
+
+const deleteIssue = async (issueId: string): Promise<void> => {
+    const response = await fetch(`/api/issues/${issueId}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete issue');
+};
 
 
 export default function AdminManageIssuesPage() {
-  const [issues, setIssues] = useState<Issue[]>(initialMockIssues);
+  const queryClient = useQueryClient();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentIssue, setCurrentIssue] = useState<Partial<Issue> | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const { toast } = useToast();
 
+  const { data: issues = [], isLoading: isLoadingIssues } = useQuery<Issue[]>({
+    queryKey: ['adminIssues'],
+    queryFn: fetchIssues,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: createIssue,
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['adminIssues'] });
+        toast({ title: "Issue Added", description: `New issue has been added.` });
+    },
+    onError: (error) => {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: updateIssue,
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['adminIssues'] });
+        toast({ title: "Issue Updated", description: `The issue has been updated.` });
+    },
+     onError: (error) => {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteIssue,
+    onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['adminIssues'] });
+        toast({ title: "Issue Deleted", description: "The issue has been removed." });
+    },
+     onError: (error) => {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+    }
+  });
+
   const handleAddNew = () => {
-    setCurrentIssue({imageUrl: 'https://placehold.co/600x400.png'});
+    setCurrentIssue({imageUrl: 'https://placehold.co/600x400.png', title: '', description: '', potentialCauses: [], solutions: []});
     setIsModalOpen(true);
   };
 
@@ -66,27 +119,16 @@ export default function AdminManageIssuesPage() {
   };
   
   const handleDelete = (issueId: string) => {
-    // Add confirmation dialog in real app
-    setIssues(issues.filter(issue => issue.id !== issueId));
-    toast({title: "Issue Deleted", description: "The issue has been removed from the list."});
+    deleteMutation.mutate(issueId);
   };
 
   const handleSaveIssue = () => {
     if (currentIssue) {
-      if (currentIssue.id) { 
-        setIssues(issues.map(iss => iss.id === currentIssue!.id ? currentIssue as Issue : iss));
-        toast({title: "Issue Updated", description: `Issue "${currentIssue.title}" has been updated.`});
-      } else { 
-        const newIssue = { 
-            ...currentIssue, 
-            id: `iss_${Date.now()}`,
-            imageUrl: currentIssue.imageUrl || 'https://placehold.co/600x400.png',
-            potentialCauses: currentIssue.potentialCauses || [],
-            solutions: currentIssue.solutions || [],
-        } as Issue;
-        setIssues([...issues, newIssue]);
-        toast({title: "Issue Added", description: `New issue "${newIssue.title}" has been added.`});
-      }
+        if (currentIssue.id) { 
+            updateMutation.mutate(currentIssue as Issue);
+        } else { 
+            createMutation.mutate(currentIssue);
+        }
     }
     setIsModalOpen(false);
     setCurrentIssue(null);
@@ -98,16 +140,20 @@ export default function AdminManageIssuesPage() {
   );
 
   const downloadIssuesCSV = () => {
+    if (issues.length === 0) {
+        toast({title: "No Data", description: "There is no data to export."});
+        return;
+    }
     const headers = ["ID", "Title", "Description", "Image URL", "Potential Causes", "Solutions"];
     const csvRows = [
         headers.join(','),
         ...filteredIssues.map(i => [
             i.id,
-            `"${i.title.replace(/"/g, '""')}"`, // Escape quotes
+            `"${i.title.replace(/"/g, '""')}"`,
             `"${i.description.replace(/"/g, '""')}"`,
             i.imageUrl,
-            `"${i.potentialCauses.join('; ').replace(/"/g, '""')}"`, // Join array and escape quotes
-            `"${i.solutions.join('; ').replace(/"/g, '""')}"`
+            `"${(i.potentialCauses || []).join('; ').replace(/"/g, '""')}"`,
+            `"${(i.solutions || []).join('; ').replace(/"/g, '""')}"`
         ].join(','))
     ];
     const csvString = csvRows.join('\r\n');
@@ -126,7 +172,6 @@ export default function AdminManageIssuesPage() {
     toast({ title: "Issues CSV Exported", description: "Common issues data has been downloaded."});
   };
 
-
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
@@ -134,7 +179,7 @@ export default function AdminManageIssuesPage() {
         description="Add, edit, or remove troubleshooting guides for common device problems."
       >
         <div className="flex gap-2">
-          <Button onClick={downloadIssuesCSV} variant="outline">
+          <Button onClick={downloadIssuesCSV} variant="outline" disabled={isLoadingIssues || issues.length === 0}>
             <Download className="mr-2 h-4 w-4" /> Download CSV
           </Button>
           <Button onClick={handleAddNew}>
@@ -167,35 +212,42 @@ export default function AdminManageIssuesPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredIssues.map((issue) => (
+            {isLoadingIssues && [...Array(3)].map((_, i) => (
+              <TableRow key={`skel-${i}`}>
+                <TableCell><Skeleton className="h-12 w-16 rounded" /></TableCell>
+                <TableCell><Skeleton className="h-6 w-3/4" /></TableCell>
+                <TableCell><Skeleton className="h-6 w-full" /></TableCell>
+                <TableCell className="text-right"><Skeleton className="h-8 w-20" /></TableCell>
+              </TableRow>
+            ))}
+            {!isLoadingIssues && filteredIssues.map((issue) => (
               <TableRow key={issue.id}>
                 <TableCell>
-                  <NextImage // Use NextImage
+                  <NextImage
                     src={issue.imageUrl || "https://placehold.co/80x60.png"}
                     alt={issue.title}
                     width={64}
                     height={48}
                     className="rounded aspect-[4/3] object-cover"
                     data-ai-hint="device issue"
-                    unoptimized={issue.imageUrl?.includes("picsum.photos")} // Add this if using picsum for dev
                   />
                 </TableCell>
                 <TableCell className="font-medium">{issue.title}</TableCell>
                 <TableCell className="max-w-xs truncate">{issue.description}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="icon" onClick={() => handleEdit(issue)} className="mr-2 hover:text-accent">
+                  <Button variant="ghost" size="icon" onClick={() => handleEdit(issue)} className="mr-2 hover:text-accent" disabled={deleteMutation.isPending || updateMutation.isPending}>
                     <Edit3 className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => handleDelete(issue.id)} className="text-destructive hover:text-destructive/80">
+                  <Button variant="ghost" size="icon" onClick={() => handleDelete(issue.id)} className="text-destructive hover:text-destructive/80" disabled={deleteMutation.isPending || updateMutation.isPending}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </TableCell>
               </TableRow>
             ))}
-             {filteredIssues.length === 0 && (
+             {!isLoadingIssues && filteredIssues.length === 0 && (
               <TableRow>
                 <TableCell colSpan={4} className="text-center h-24">
-                  No issues found.
+                  No issues found. Create one to get started.
                 </TableCell>
               </TableRow>
             )}
@@ -224,13 +276,6 @@ export default function AdminManageIssuesPage() {
               <Label htmlFor="imageUrl" className="text-right">Image URL</Label>
               <Input id="imageUrl" value={currentIssue?.imageUrl || ''} onChange={(e) => setCurrentIssue({...currentIssue, imageUrl: e.target.value})} className="col-span-3" placeholder="https://placehold.co/600x400.png"/>
             </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-               <Label htmlFor="imageUpload" className="text-right self-start pt-2">Upload Image</Label>
-               <div className="col-span-3">
-                <Input id="imageUpload" type="file" className="text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20" disabled/>
-                <p className="text-xs text-muted-foreground mt-1">Alternatively, provide an Image URL above. (File upload not implemented yet)</p>
-               </div>
-            </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="potentialCauses" className="text-right pt-2">Potential Causes</Label>
               <Textarea id="potentialCauses" value={currentIssue?.potentialCauses?.join('\n') || ''} onChange={(e) => setCurrentIssue({...currentIssue, potentialCauses: e.target.value.split('\n').filter(c => c.trim() !== '')})} className="col-span-3 min-h-[80px]" placeholder="One cause per line"/>
@@ -242,11 +287,12 @@ export default function AdminManageIssuesPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsModalOpen(false)}>Cancel</Button>
-            <Button type="button" onClick={handleSaveIssue}>Save Issue</Button>
+            <Button type="button" onClick={handleSaveIssue} disabled={createMutation.isPending || updateMutation.isPending}>
+                {(createMutation.isPending || updateMutation.isPending) ? "Saving..." : "Save Issue"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
     </div>
   );
 }

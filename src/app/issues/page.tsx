@@ -1,47 +1,32 @@
+
+"use client";
 import { PageHeader } from "@/components/shared/page-header";
 import { IssueCard, type Issue } from "@/components/issues/issue-card";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const mockIssues: Issue[] = [
-  {
-    id: "1",
-    title: "Sensor Offline",
-    description: "The sensor is not reporting any data to the dashboard.",
-    imageUrl: "https://picsum.photos/seed/offline/600/400",
-    potentialCauses: ["Power supply issue", "Network connectivity problem", "Faulty sensor hardware"],
-    solutions: ["Check power cable and source.", "Verify Wi-Fi/GSM connection.", "Restart the sensor and controller."],
-  },
-  {
-    id: "2",
-    title: "Inaccurate Temperature Readings",
-    description: "Temperature values are consistently too high or too low.",
-    imageUrl: "https://picsum.photos/seed/temp/600/400",
-    potentialCauses: ["Sensor miscalibration", "Sensor placement issue (e.g., near heat source)", "Environmental interference"],
-    solutions: ["Recalibrate the sensor if possible.", "Relocate sensor to a neutral area.", "Shield sensor from direct sunlight or drafts."],
-  },
-  {
-    id: "3",
-    title: "False Water Leak Alerts",
-    description: "The system reports water leaks when there are none.",
-    imageUrl: "https://picsum.photos/seed/leak/600/400",
-    potentialCauses: ["Sensor sensitivity too high", "Condensation buildup on sensor", "Electromagnetic interference"],
-    solutions: ["Adjust sensor sensitivity settings.", "Clean and dry the sensor area.", "Ensure proper grounding and shielding."],
-  },
-  {
-    id: "4",
-    title: "Intermittent Connectivity",
-    description: "Sensor drops connection randomly and then reconnects.",
-    imageUrl: "https://picsum.photos/seed/intermittent/600/400",
-    potentialCauses: ["Weak Wi-Fi/GSM signal", "Network congestion", "Router issues", "Firmware bugs"],
-    solutions: ["Move sensor closer to router or use signal booster.", "Check network for other high-bandwidth devices.", "Restart router.", "Update sensor/controller firmware."],
-  }
-];
+const fetchIssues = async (): Promise<Issue[]> => {
+    const response = await fetch('/api/issues');
+    if (!response.ok) {
+        throw new Error('Failed to fetch issues');
+    }
+    return response.json();
+};
 
 export default function IssuesPage() {
-  // In a real app, you'd fetch and filter issues.
-  // For now, we'll just display all mock issues.
-  const issues = mockIssues;
+  const [searchTerm, setSearchTerm] = useState('');
+  const { data: issues = [], isLoading, error } = useQuery<Issue[]>({
+    queryKey: ['issues'],
+    queryFn: fetchIssues,
+  });
+
+  const filteredIssues = issues.filter(issue =>
+    issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    issue.description.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -51,11 +36,25 @@ export default function IssuesPage() {
       />
       <div className="relative mb-6">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-        <Input type="search" placeholder="Search issues..." className="pl-10 w-full md:w-1/2 lg:w-1/3" />
+        <Input 
+            type="search" 
+            placeholder="Search issues..." 
+            className="pl-10 w-full md:w-1/2 lg:w-1/3"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+        />
       </div>
-      {issues.length > 0 ? (
+      {isLoading ? (
+         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[...Array(3)].map((_, i) => (
+                <CardSkeleton key={i} />
+            ))}
+        </div>
+      ) : error ? (
+        <p className="text-center text-destructive py-8">Failed to load troubleshooting guides. Please try again later.</p>
+      ) : filteredIssues.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {issues.map((issue) => (
+          {filteredIssues.map((issue) => (
             <IssueCard key={issue.id} issue={issue} />
           ))}
         </div>
@@ -64,4 +63,21 @@ export default function IssuesPage() {
       )}
     </div>
   );
+}
+
+
+function CardSkeleton() {
+    return (
+        <div className="flex flex-col h-full shadow-lg border rounded-lg overflow-hidden">
+            <Skeleton className="w-full h-48" />
+            <div className="p-6 space-y-2">
+                <Skeleton className="h-6 w-3/4" />
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+            </div>
+            <div className="p-6 pt-0 mt-auto">
+                <Skeleton className="h-10 w-full" />
+            </div>
+        </div>
+    )
 }
