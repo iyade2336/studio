@@ -18,9 +18,7 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { auth, db } from "@/lib/firebase";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, setDoc } from "firebase/firestore";
+import { supabase } from "@/lib/supabase";
 
 const formSchema = z.object({
   firstName: z.string().min(2, {message: "First name must be at least 2 characters."}),
@@ -55,49 +53,67 @@ export function RegisterForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, values.email, values.password);
-      const user = userCredential.user;
-
-      // Now create a document in Firestore for this user
-      await setDoc(doc(db, "users", user.uid), {
-        uid: user.uid,
-        firstName: values.firstName,
-        lastName: values.lastName,
+    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: values.email,
-        whatsappNumber: values.whatsappNumber,
-        companyName: values.companyName,
-        status: 'pending',
-        role: 'user', // Default role for new registrations
-        subscription: "None",
-        allowedDevices: 0,
-        joinedDate: new Date().toISOString(),
-        avatarUrl: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
-        allowBluetoothControlFeatures: false,
-        allowWaterLeakConfigFeatures: false,
-      });
+        password: values.password,
+        options: {
+            data: {
+                first_name: values.firstName,
+                last_name: values.lastName,
+                company_name: values.companyName,
+                whatsapp_number: values.whatsappNumber,
+                avatar_url: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
+            }
+        }
+    });
 
-      toast({
-        title: "Registration Successful!",
-        description: "Your account is now pending admin approval. You will be able to log in once it's reviewed.",
-        duration: 9000,
-      });
-      form.reset();
-
-    } catch (error: any) {
-      console.error("Registration error:", error);
-      let errorMessage = "An unexpected error occurred. Please try again.";
-      if (error.code === 'auth/email-already-in-use') {
-        errorMessage = "An account with this email already exists.";
-      }
-      toast({
-        title: "Registration Failed",
-        description: errorMessage,
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
+    if (signUpError) {
+        toast({
+            title: "Registration Failed",
+            description: signUpError.message,
+            variant: "destructive",
+        });
+        setIsLoading(false);
+        return;
     }
+
+    if (signUpData.user) {
+        // Now also add the user to our public.users table
+        const { error: insertError } = await supabase.from('users').insert({
+            id: signUpData.user.id,
+            first_name: values.firstName,
+            last_name: values.lastName,
+            email: values.email,
+            whatsapp_number: values.whatsappNumber,
+            company_name: values.companyName,
+            avatar_url: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
+            status: 'pending',
+            role: 'user',
+            subscription: "None",
+            allowed_devices: 0,
+            allow_bluetooth_control: false,
+            allow_water_leak_config: false,
+        });
+
+        if (insertError) {
+            toast({
+                title: "Registration Failed",
+                description: `Could not save user details: ${insertError.message}`,
+                variant: "destructive",
+            });
+            setIsLoading(false);
+            return;
+        }
+
+        toast({
+            title: "Registration Successful!",
+            description: "Your account is now pending admin approval. Please check your email to confirm your address.",
+            duration: 9000,
+        });
+        form.reset();
+    }
+    
+    setIsLoading(false);
   }
 
   return (

@@ -73,7 +73,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
       <Card className="overflow-hidden shadow-lg">
         <div className="relative w-full h-64 md:h-96">
           <Image
-            src={issue.imageUrl}
+            src={issue.image_url}
             alt={issue.title}
             layout="fill"
             objectFit="cover"
@@ -84,7 +84,7 @@ export default function IssueDetailPage({ params }: { params: { id: string } }) 
           <section className="mb-6">
             <h2 className="text-xl font-semibold mb-3 text-primary">Potential Causes</h2>
             <ul className="list-disc list-inside space-y-2 text-muted-foreground">
-              {issue.potentialCauses.map((cause, index) => (
+              {issue.potential_causes.map((cause, index) => (
                 <li key={index}>{cause}</li>
               ))}
             </ul>

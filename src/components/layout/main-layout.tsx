@@ -192,7 +192,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                   <>
                     <DropdownMenuLabel>
                       <p className="font-medium flex items-center"><ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Administrator</p>
-                      <p className="text-xs text-muted-foreground">admin@admin.com</p>
+                      <p className="text-xs text-muted-foreground">admin@iotguardian.com</p>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
@@ -210,7 +210,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 ) : currentUser?.isLoggedIn ? (
                   <>
                     <DropdownMenuLabel>
-                      <p className="font-medium">{currentUser.name}</p>
+                      <p className="font-medium">{currentUser.first_name} {currentUser.last_name}</p>
                       <p className="text-xs text-muted-foreground">{currentUser.email}</p>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />

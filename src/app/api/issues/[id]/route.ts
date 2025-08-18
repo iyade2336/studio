@@ -1,14 +1,13 @@
 
 import { NextResponse } from 'next/server';
-import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
-import { db } from '@/lib/firebase';
+import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
 
 const IssueSchema = z.object({
   title: z.string().min(1),
   description: z.string().min(1),
-  imageUrl: z.string().url(),
-  potentialCauses: z.array(z.string()),
+  image_url: z.string().url(),
+  potential_causes: z.array(z.string()),
   solutions: z.array(z.string()),
 });
 
@@ -19,16 +18,17 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const docRef = doc(db, "issues", params.id);
-    const docSnap = await getDoc(docRef);
+    const { data, error } = await supabase.from('issues').select('*').eq('id', params.id).single();
 
-    if (docSnap.exists()) {
-      return NextResponse.json({ id: docSnap.id, ...docSnap.data() }, { status: 200 });
+    if (error) throw error;
+    if (data) {
+      return NextResponse.json(data, { status: 200 });
     } else {
       return NextResponse.json({ error: "Issue not found" }, { status: 404 });
     }
   } catch (error) {
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -45,12 +45,14 @@ export async function PUT(
         return NextResponse.json({ error: "Invalid data", details: validation.error.format() }, { status: 400 });
     }
     
-    const docRef = doc(db, "issues", params.id);
-    await updateDoc(docRef, validation.data);
+    const { data, error } = await supabase.from('issues').update(validation.data).eq('id', params.id).select().single();
 
-    return NextResponse.json({ id: params.id, ...validation.data }, { status: 200 });
+    if (error) throw error;
+
+    return NextResponse.json(data, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -60,10 +62,11 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const docRef = doc(db, "issues", params.id);
-    await deleteDoc(docRef);
+    const { error } = await supabase.from('issues').delete().eq('id', params.id);
+    if (error) throw error;
     return NextResponse.json({ message: "Issue deleted successfully" }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+     const errorMessage = error instanceof Error ? error.message : "Internal server error";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

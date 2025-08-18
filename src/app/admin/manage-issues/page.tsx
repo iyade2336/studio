@@ -109,7 +109,7 @@ export default function AdminManageIssuesPage() {
   });
 
   const handleAddNew = () => {
-    setCurrentIssue({imageUrl: 'https://placehold.co/600x400.png', title: '', description: '', potentialCauses: [], solutions: []});
+    setCurrentIssue({image_url: 'https://placehold.co/600x400.png', title: '', description: '', potential_causes: [], solutions: []});
     setIsModalOpen(true);
   };
 
@@ -151,8 +151,8 @@ export default function AdminManageIssuesPage() {
             i.id,
             `"${i.title.replace(/"/g, '""')}"`,
             `"${i.description.replace(/"/g, '""')}"`,
-            i.imageUrl,
-            `"${(i.potentialCauses || []).join('; ').replace(/"/g, '""')}"`,
+            i.image_url,
+            `"${(i.potential_causes || []).join('; ').replace(/"/g, '""')}"`,
             `"${(i.solutions || []).join('; ').replace(/"/g, '""')}"`
         ].join(','))
     ];
@@ -224,7 +224,7 @@ export default function AdminManageIssuesPage() {
               <TableRow key={issue.id}>
                 <TableCell>
                   <NextImage
-                    src={issue.imageUrl || "https://placehold.co/80x60.png"}
+                    src={issue.image_url || "https://placehold.co/80x60.png"}
                     alt={issue.title}
                     width={64}
                     height={48}
@@ -274,11 +274,11 @@ export default function AdminManageIssuesPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="imageUrl" className="text-right">Image URL</Label>
-              <Input id="imageUrl" value={currentIssue?.imageUrl || ''} onChange={(e) => setCurrentIssue({...currentIssue, imageUrl: e.target.value})} className="col-span-3" placeholder="https://placehold.co/600x400.png"/>
+              <Input id="imageUrl" value={currentIssue?.image_url || ''} onChange={(e) => setCurrentIssue({...currentIssue, image_url: e.target.value})} className="col-span-3" placeholder="https://placehold.co/600x400.png"/>
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="potentialCauses" className="text-right pt-2">Potential Causes</Label>
-              <Textarea id="potentialCauses" value={currentIssue?.potentialCauses?.join('\n') || ''} onChange={(e) => setCurrentIssue({...currentIssue, potentialCauses: e.target.value.split('\n').filter(c => c.trim() !== '')})} className="col-span-3 min-h-[80px]" placeholder="One cause per line"/>
+              <Textarea id="potentialCauses" value={currentIssue?.potential_causes?.join('\n') || ''} onChange={(e) => setCurrentIssue({...currentIssue, potential_causes: e.target.value.split('\n').filter(c => c.trim() !== '')})} className="col-span-3 min-h-[80px]" placeholder="One cause per line"/>
             </div>
             <div className="grid grid-cols-4 items-start gap-4">
               <Label htmlFor="solutions" className="text-right pt-2">Solutions</Label>

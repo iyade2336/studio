@@ -14,7 +14,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoading && !isAdmin) {
-      router.replace('/auth/login'); // Changed from /auth/admin-login
+      router.replace('/auth/login');
     }
   }, [isAdmin, isLoading, router]);
 
@@ -28,7 +28,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
   }
 
   if (!isAdmin) {
-    // This is a fallback, useEffect should handle redirection
     return (
        <div className="flex items-center justify-center min-h-screen bg-background text-foreground admin-dashboard">
         <p className="text-lg text-destructive">Redirecting to login...</p>

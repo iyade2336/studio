@@ -1,8 +1,7 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { db } from '@/lib/firebase';
-import { collection, doc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
 
 const CommandSchema = z.object({
   command: z.enum(['ON', 'OFF']),
@@ -32,22 +31,22 @@ export async function POST(
       command,
       parameters,
       timestamp: new Date().toISOString(),
-      serverTimestamp: serverTimestamp(),
-      processed: false, // Flag to indicate if the device has acted on the command
+      processed: false,
     };
 
-    // Use setDoc with deviceId as the document ID for easy retrieval.
-    await setDoc(doc(db, "deviceCommands", deviceId), commandToStore);
+    const { error } = await supabase
+        .from('device_commands')
+        .upsert({ device_id: deviceId, ...commandToStore }, { onConflict: 'device_id' });
+
+    if (error) throw error;
 
     console.log(`Command for device ${deviceId} set to:`, commandToStore);
     return NextResponse.json({ status: 'success', message: `Command ${command} queued for device ${deviceId}.`, deviceId, commandDetails: commandToStore }, { status: 200 });
 
   } catch (error) {
     console.error(`Error processing command for device ${deviceId}:`, error);
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ error: 'Invalid JSON payload' }, { status: 400 });
-    }
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+    const errorMessage = error instanceof Error ? error.message : 'Internal Server Error';
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }
 
@@ -60,14 +59,19 @@ export async function GET(
     return NextResponse.json({ error: 'Device ID is required' }, { status: 400 });
   }
 
-  const commandDocRef = doc(db, "deviceCommands", deviceId);
-  const docSnap = await getDoc(commandDocRef);
+  const { data, error } = await supabase
+    .from('device_commands')
+    .select('*')
+    .eq('device_id', deviceId)
+    .single();
 
-  if (docSnap.exists()) {
-    const commandDetails = docSnap.data();
-    // In a robust system, you might delete the command or mark it as processed here.
-    // For this implementation, we'll just return it. The device should handle not re-processing old commands.
-    return NextResponse.json(commandDetails, { status: 200 });
+  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+    console.error('Error fetching command:', error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (data) {
+    return NextResponse.json(data, { status: 200 });
   } else {
     return NextResponse.json({ message: `No pending commands for device ${deviceId}.` }, { status: 200 }); 
   }

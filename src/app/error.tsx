@@ -5,8 +5,7 @@ import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle } from 'lucide-react'
-import { db } from '@/lib/firebase'
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
+import { supabase } from '@/lib/supabase'
 import { useUser } from '@/context/user-context'
 
 export default function GlobalError({
@@ -19,21 +18,20 @@ export default function GlobalError({
   const { currentUser } = useUser();
 
   useEffect(() => {
-    // Log the error to our reporting service (Firestore)
+    // Log the error to our reporting service (Supabase)
     const logError = async () => {
       try {
-        await addDoc(collection(db, "errorReports"), {
+        await supabase.from('error_reports').insert({
           message: error.message,
-          stack: error.stack,
+          stack_trace: error.stack,
           digest: error.digest,
-          timestamp: serverTimestamp(),
-          userId: currentUser?.uid || 'guest',
+          user_id: currentUser?.id || 'guest',
           path: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
-          userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
+          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
         });
-        console.error("Error logged to Firestore:", error);
+        console.error("Error logged to Supabase:", error);
       } catch (loggingError) {
-        console.error("Failed to log error to Firestore:", loggingError);
+        console.error("Failed to log error to Supabase:", loggingError);
         console.error("Original error was:", error);
       }
     };

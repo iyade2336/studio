@@ -1,6 +1,6 @@
 
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { SensorCard, type SensorData as DisplaySensorData } from "./sensor-card"; 
 import { Button } from "@/components/ui/button";
 import { RefreshCw, AlertTriangle, Download } from "lucide-react";
@@ -8,34 +8,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, orderBy, limit, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 
-// This type represents the raw data structure from Firestore for device status
+// This type represents the raw data structure from Supabase for device status
 interface DeviceStatus {
-    id: string; // Firestore document ID
-    deviceId: string;
+    id: string; // postgres uuid
+    device_id: string;
     temperature?: number;
     humidity?: number;
-    waterLeak?: boolean;
-    lastSeen: {
-        seconds: number;
-        nanoseconds: number;
-    } | null;
-    status: 'online' | 'offline'; // And other fields from the 'devices' collection
+    water_leak?: boolean;
+    last_seen: string | null;
+    status: 'online' | 'offline';
 }
 
-// This type represents the raw data structure from Firestore for historical data
-interface FirestoreSensorReading {
-    deviceId: string;
+// This type represents the raw data structure from Supabase for historical data
+interface SupabaseSensorReading {
+    device_id: string;
     temperature?: number;
     humidity?: number;
-    waterLeak?: boolean;
-    serverTimestamp: {
-        seconds: number;
-        nanoseconds: number;
-    } | null;
+    water_leak?: boolean;
+    created_at: string | null;
 }
 
 const deriveStatus = (data: DisplaySensorData, currentUser: ReturnType<typeof useUser>['currentUser']): DisplaySensorData["status"] => {
@@ -54,18 +47,26 @@ const MAX_HISTORICAL_READINGS = 20;
 
 // Function to fetch latest readings from the 'devices' collection
 const fetchLatestReadings = async (): Promise<DeviceStatus[]> => {
-    const devicesRef = collection(db, 'devices');
-    const q = query(devicesRef, orderBy('lastSeen', 'desc'), limit(MAX_DEVICES_TO_DISPLAY));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as DeviceStatus));
+    const { data, error } = await supabase
+        .from('devices')
+        .select('*')
+        .order('last_seen', { ascending: false })
+        .limit(MAX_DEVICES_TO_DISPLAY);
+
+    if (error) throw new Error(error.message);
+    return data as DeviceStatus[];
 };
 
-// Function to fetch historical data from the 'sensorData' collection
-const fetchHistoricalReadings = async (): Promise<FirestoreSensorReading[]> => {
-    const historicalDataRef = collection(db, 'sensorData');
-    const q = query(historicalDataRef, orderBy('serverTimestamp', 'desc'), limit(MAX_HISTORICAL_READINGS * MAX_DEVICES_TO_DISPLAY));
-    const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => doc.data() as FirestoreSensorReading);
+// Function to fetch historical data from the 'sensor_data' collection
+const fetchHistoricalReadings = async (): Promise<SupabaseSensorReading[]> => {
+    const { data, error } = await supabase
+        .from('sensor_data')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(MAX_HISTORICAL_READINGS * MAX_DEVICES_TO_DISPLAY);
+    
+    if (error) throw new Error(error.message);
+    return data as SupabaseSensorReading[];
 };
 
 
@@ -81,7 +82,7 @@ export function RealtimeDataGrid() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const { data: historicalReadings, isLoading: isLoadingHistorical, refetch: refetchHistorical } = useQuery<FirestoreSensorReading[]>({
+  const { data: historicalReadings, isLoading: isLoadingHistorical, refetch: refetchHistorical } = useQuery<SupabaseSensorReading[]>({
     queryKey: ['historicalReadings'],
     queryFn: fetchHistoricalReadings,
     enabled: !!currentUser?.isLoggedIn,
@@ -94,18 +95,18 @@ export function RealtimeDataGrid() {
 
     const transformedSensors = latestDeviceReadings.map(device => {
         const displayData: DisplaySensorData = {
-            id: device.deviceId,
-            name: device.deviceId,
+            id: device.device_id,
+            name: device.device_id,
             temperature: device.temperature,
             humidity: device.humidity,
-            waterLeak: device.waterLeak,
-            lastUpdated: device.lastSeen ? format(new Date(device.lastSeen.seconds * 1000), 'p') : 'N/A',
-            deviceState: 'ON', // Default state, real state would need another field in Firestore
+            waterLeak: device.water_leak,
+            lastUpdated: device.last_seen ? format(new Date(device.last_seen), 'p') : 'N/A',
+            deviceState: 'ON', // Default state, real state would need another field
             status: 'ok', // Will be derived next
             historicalData: historicalReadings
-              ?.filter(h => h.deviceId === device.deviceId)
+              ?.filter(h => h.device_id === device.device_id && h.created_at)
               .map(h => ({ 
-                  time: h.serverTimestamp ? format(new Date(h.serverTimestamp.seconds * 1000), 'HH:mm') : 'N/A', 
+                  time: format(new Date(h.created_at!), 'HH:mm'), 
                   temperature: h.temperature 
                 }))
               .reverse() // Correct order for charting

@@ -6,27 +6,24 @@ import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Users, HardDrive, ShieldQuestion, BarChart3, Loader2, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { collection, query, where, getDocs, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 const fetchUsersCount = async () => {
-  const usersRef = collection(db, "users");
-  const snapshot = await getDocs(usersRef);
-  return snapshot.size;
+  const { count, error } = await supabase.from('users').select('*', { count: 'exact', head: true });
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 };
 
 const fetchActiveDevicesCount = async () => {
-  const devicesRef = collection(db, "devices");
-  const q = query(devicesRef, where('status', '==', 'online'));
-  const snapshot = await getDocs(q);
-  return snapshot.size;
+  const { count, error } = await supabase.from('devices').select('*', { count: 'exact', head: true }).eq('status', 'online');
+  if (error) throw new Error(error.message);
+  return count ?? 0;
 };
 
 const fetchErrorReportsCount = async () => {
-    const errorsRef = collection(db, 'errorReports');
-    const snapshot = await getDocs(errorsRef);
-    return snapshot.size;
+    const { count, error } = await supabase.from('error_reports').select('*', { count: 'exact', head: true });
+    if (error) throw new Error(error.message);
+    return count ?? 0;
 };
 
 

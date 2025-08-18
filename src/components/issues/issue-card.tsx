@@ -8,8 +8,8 @@ export interface Issue {
   id: string;
   title: string;
   description: string;
-  imageUrl: string;
-  potentialCauses: string[];
+  image_url: string;
+  potential_causes: string[];
   solutions: string[];
 }
 
@@ -22,7 +22,7 @@ export function IssueCard({ issue }: IssueCardProps) {
     <Card className="flex flex-col h-full shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
       <div className="relative w-full h-48">
         <Image
-          src={issue.imageUrl}
+          src={issue.image_url}
           alt={issue.title}
           layout="fill"
           objectFit="cover"
@@ -37,10 +37,10 @@ export function IssueCard({ issue }: IssueCardProps) {
         <div>
           <h4 className="font-semibold mb-1 text-sm">Potential Causes:</h4>
           <ul className="list-disc list-inside text-xs text-muted-foreground space-y-0.5">
-            {issue.potentialCauses.slice(0, 2).map((cause, index) => (
+            {issue.potential_causes.slice(0, 2).map((cause, index) => (
               <li key={index} className="truncate">{cause}</li>
             ))}
-            {issue.potentialCauses.length > 2 && <li className="text-xs">...and more</li>}
+            {issue.potential_causes.length > 2 && <li className="text-xs">...and more</li>}
           </ul>
         </div>
       </CardContent>

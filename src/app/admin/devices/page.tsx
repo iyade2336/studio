@@ -26,28 +26,24 @@ import { MoreHorizontal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { collection, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 
 interface Device {
-  id: string; // Firestore document ID
-  deviceId: string;
+  id: string; 
+  device_id: string;
   name?: string;
   owner?: string;
   status: 'online' | 'offline' | 'warning' | 'danger';
-  lastSeen: { seconds: number; nanoseconds: number; } | null;
+  last_seen: string | null;
   type?: string;
 }
 
 const fetchDevices = async (): Promise<Device[]> => {
-  const devicesRef = collection(db, "devices");
-  const querySnapshot = await getDocs(devicesRef);
-  return querySnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data()
-  } as Device));
+  const { data, error } = await supabase.from('devices').select('*');
+  if (error) throw new Error(error.message);
+  return data as Device[];
 };
 
 export default function AdminDevicesPage() {
@@ -67,11 +63,11 @@ export default function AdminDevicesPage() {
     const csvRows = [
         headers.join(','),
         ...filteredDevices.map(d => [
-            d.deviceId,
+            d.device_id,
             d.name || 'N/A',
             d.owner || 'N/A',
             d.status,
-            d.lastSeen ? new Date(d.lastSeen.seconds * 1000).toLocaleString() : 'N/A',
+            d.last_seen ? new Date(d.last_seen).toLocaleString() : 'N/A',
             d.type || 'N/A'
         ].join(','))
     ];
@@ -94,7 +90,7 @@ export default function AdminDevicesPage() {
   const filteredDevices = devices.filter(device => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      device.deviceId.toLowerCase().includes(searchLower) ||
+      device.device_id.toLowerCase().includes(searchLower) ||
       (device.name && device.name.toLowerCase().includes(searchLower)) ||
       (device.owner && device.owner.toLowerCase().includes(searchLower))
     );
@@ -186,7 +182,7 @@ export default function AdminDevicesPage() {
             ))}
             {!isLoadingDevices && filteredDevices.map((device) => (
               <TableRow key={device.id}>
-                <TableCell className="font-medium">{device.deviceId}</TableCell>
+                <TableCell className="font-medium">{device.device_id}</TableCell>
                 <TableCell>{device.name || 'N/A'}</TableCell>
                 <TableCell>{device.owner || 'N/A'}</TableCell>
                 <TableCell>
@@ -202,7 +198,7 @@ export default function AdminDevicesPage() {
                     {device.status}
                   </Badge>
                 </TableCell>
-                <TableCell>{device.lastSeen ? new Date(device.lastSeen.seconds * 1000).toLocaleString() : 'Never'}</TableCell>
+                <TableCell>{device.last_seen ? new Date(device.last_seen).toLocaleString() : 'Never'}</TableCell>
                 <TableCell>{device.type || 'Unknown'}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>

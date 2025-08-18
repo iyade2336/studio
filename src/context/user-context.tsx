@@ -5,9 +5,9 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { doc, getDoc, onSnapshot } from 'firebase/firestore';
+import { supabase } from '@/lib/supabase';
+import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+
 
 export interface Subscription {
   planName: string;
@@ -21,19 +21,17 @@ export interface Subscription {
 
 export interface User {
   id: string;
-  uid: string;
-  name: string;
-  firstName: string;
-  lastName: string;
+  first_name: string;
+  last_name: string;
   email: string;
-  whatsappNumber: string;
-  companyName: string;
+  whatsapp_number: string;
+  company_name: string;
   isLoggedIn: boolean;
   subscription: Subscription;
   status: 'pending' | 'active' | 'rejected';
   role: 'user' | 'admin';
-  allowBluetoothControlFeatures: boolean;
-  allowWaterLeakConfigFeatures: boolean;
+  allow_bluetooth_control: boolean;
+  allow_water_leak_config: boolean;
 }
 
 
@@ -73,18 +71,16 @@ export const PLAN_DETAILS: Record<string, Partial<Subscription>> = {
 
 const MOCK_USER_LOGGED_OUT: User = {
   id: '',
-  uid: '',
-  name: 'Guest',
-  firstName: '',
-  lastName: '',
+  first_name: 'Guest',
+  last_name: '',
   email: '',
-  whatsappNumber: '',
-  companyName: '',
+  whatsapp_number: '',
+  company_name: '',
   isLoggedIn: false,
   status: 'pending',
   role: 'user',
-  allowBluetoothControlFeatures: false,
-  allowWaterLeakConfigFeatures: false,
+  allow_bluetooth_control: false,
+  allow_water_leak_config: false,
   subscription: {
     planName: 'None',
     expiryDate: new Date(0).toISOString(),
@@ -101,69 +97,60 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { toast } = useToast();
 
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
-      if (firebaseUser) {
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        try {
-            const docSnap = await getDoc(userDocRef);
-            if (docSnap.exists()) {
-                const userDataFromDb = docSnap.data();
-
-                // If user is not an active user, sign them out from this context
-                if (userDataFromDb.status !== 'active' || userDataFromDb.role !== 'user') {
-                    // Don't sign out from Firebase here, as Admin context might need it
-                    setCurrentUser(MOCK_USER_LOGGED_OUT);
-                    setIsLoading(false);
-                    return;
-                }
-
-                const planName = userDataFromDb.subscription;
-                const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
-
-                const userToSet: User = {
-                  id: docSnap.id,
-                  uid: firebaseUser.uid,
-                  isLoggedIn: true,
-                  name: `${userDataFromDb.firstName} ${userDataFromDb.lastName}`,
-                  firstName: userDataFromDb.firstName,
-                  lastName: userDataFromDb.lastName,
-                  email: userDataFromDb.email,
-                  whatsappNumber: userDataFromDb.whatsappNumber,
-                  companyName: userDataFromDb.companyName,
-                  status: userDataFromDb.status,
-                  role: userDataFromDb.role,
-                  allowBluetoothControlFeatures: userDataFromDb.allowBluetoothControlFeatures,
-                  allowWaterLeakConfigFeatures: userDataFromDb.allowWaterLeakConfigFeatures,
-                  subscription: {
-                    planName: planName,
-                    expiryDate: userDataFromDb.subscriptionExpiryDate || new Date().toISOString(),
-                    maxDevices: userDataFromDb.allowedDevices ?? planDetails.maxDevices ?? 0,
-                    canControlDevice: planDetails.canControlDevice ?? false,
-                    canExportCsv: planDetails.canExportCsv ?? false,
-                    hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
-                    canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
-                  },
-                };
-                setCurrentUser(userToSet);
-            } else {
-                signOut(auth);
-                setCurrentUser(MOCK_USER_LOGGED_OUT);
-            }
-        } catch (error) {
-            console.error("Error fetching user document:", error);
-            signOut(auth);
-            setCurrentUser(MOCK_USER_LOGGED_OUT);
-        } finally {
-            setIsLoading(false);
+  const fetchAndSetUser = useCallback(async (session: Session | null) => {
+    if (session?.user) {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+        
+      if (data && !error) {
+        if (data.status !== 'active' || data.role !== 'user') {
+          setCurrentUser(MOCK_USER_LOGGED_OUT);
+          setIsLoading(false);
+          return;
         }
 
+        const planName = data.subscription;
+        const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
+
+        setCurrentUser({
+          ...data,
+          isLoggedIn: true,
+          subscription: {
+            planName: planName,
+            expiryDate: data.subscription_expiry_date || new Date().toISOString(),
+            maxDevices: data.allowed_devices ?? planDetails.maxDevices ?? 0,
+            canControlDevice: planDetails.canControlDevice ?? false,
+            canExportCsv: planDetails.canExportCsv ?? false,
+            hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
+            canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
+          },
+        });
       } else {
-        // User is signed out
+        await supabase.auth.signOut();
         setCurrentUser(MOCK_USER_LOGGED_OUT);
-        setIsLoading(false);
       }
-    });
+    } else {
+      setCurrentUser(MOCK_USER_LOGGED_OUT);
+    }
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        fetchAndSetUser(session);
+      }
+    );
+    
+    // Initial check
+    const checkInitialSession = async () => {
+        const { data: { session } } = await supabase.auth.getSession();
+        fetchAndSetUser(session);
+    };
+    checkInitialSession();
 
     const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
     if (storedNotifications) {
@@ -171,23 +158,37 @@ export function UserProvider({ children }: { children: ReactNode }) {
         const parsedNotifications = (JSON.parse(storedNotifications) as AppNotification[]).map(n => ({...n, timestamp: new Date(n.timestamp)}));
         setNotifications(parsedNotifications);
       } catch(e) { /* ignore */ }
-    } else {
-        setNotifications([]);
     }
 
-    return () => unsubscribeAuth();
-  }, [router, toast]);
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [fetchAndSetUser]);
 
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
-  const loginUser = useCallback((userData: User) => {
-    setCurrentUser(userData);
+  const loginUser = useCallback((userData: any) => {
+    const planName = userData.subscription;
+    const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
+     setCurrentUser({
+          ...userData,
+          isLoggedIn: true,
+          subscription: {
+            planName: planName,
+            expiryDate: userData.subscription_expiry_date || new Date().toISOString(),
+            maxDevices: userData.allowed_devices ?? planDetails.maxDevices ?? 0,
+            canControlDevice: planDetails.canControlDevice ?? false,
+            canExportCsv: planDetails.canExportCsv ?? false,
+            hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
+            canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
+          },
+        });
   }, []);
 
   const logoutUser = useCallback(async () => {
-    await signOut(auth);
+    await supabase.auth.signOut();
     setCurrentUser(MOCK_USER_LOGGED_OUT);
     router.push('/auth/login');
   }, [router]);

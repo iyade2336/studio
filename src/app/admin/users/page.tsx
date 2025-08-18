@@ -47,35 +47,46 @@ import { useUser } from "@/context/user-context";
 import { PLAN_DETAILS } from "@/context/user-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { collection, query, doc, updateDoc, deleteDoc, getDocs } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export interface AdminUser {
-  id: string; // This will be the Firestore document ID
-  uid: string; // This is the Firebase Auth UID
-  firstName: string;
-  lastName: string;
+  id: string; // This is the Supabase Auth UID
+  first_name: string;
+  last_name: string;
   email: string;
-  whatsappNumber: string;
-  companyName: string;
+  whatsapp_number: string;
+  company_name: string;
   subscription: keyof typeof PLAN_DETAILS; 
-  allowedDevices: number; 
-  joinedDate: string; 
-  avatarUrl?: string;
+  allowed_devices: number; 
+  joined_date: string; 
+  avatar_url?: string;
   status: 'pending' | 'active' | 'rejected';
   role: 'user' | 'admin';
-  allowBluetoothControlFeatures: boolean;
-  allowWaterLeakConfigFeatures: boolean;
-  subscriptionExpiryDate?: string; 
+  allow_bluetooth_control: boolean;
+  allow_water_leak_config: boolean;
+  subscription_expiry_date?: string; 
 }
 
 
 const fetchUsers = async (): Promise<AdminUser[]> => {
-    const usersRef = collection(db, "users");
-    const usersQuery = query(usersRef);
-    const querySnapshot = await getDocs(usersQuery);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AdminUser));
+    const { data, error } = await supabase.from('users').select('*');
+    if (error) throw new Error(error.message);
+    return data as AdminUser[];
+};
+
+const updateUser = async (userData: Partial<AdminUser>) => {
+    const { id, ...updateData } = userData;
+    const { error } = await supabase.from('users').update(updateData).eq('id', id);
+    if (error) throw new Error(error.message);
+};
+
+const deleteUser = async (userId: string) => {
+    // This is more complex in Supabase, involving deleting from auth.users
+    // For the UI, we'll just delete from the users table and log a warning.
+    console.warn("User deletion from Supabase Auth needs to be handled server-side or via admin privileges.");
+    const { error } = await supabase.from('users').delete().eq('id', userId);
+    if (error) throw new Error(error.message);
 };
 
 
@@ -100,6 +111,29 @@ export default function AdminUsersPage() {
     queryFn: fetchUsers,
   });
 
+  const updateUserMutation = useMutation({
+      mutationFn: updateUser,
+      onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['users']});
+          toast({ title: "User Updated", description: "User has been updated successfully."});
+          setIsUserModalOpen(false);
+      },
+      onError: (error) => {
+          toast({ title: "Update Error", description: error.message, variant: "destructive" });
+      }
+  });
+
+  const deleteUserMutation = useMutation({
+      mutationFn: deleteUser,
+      onSuccess: () => {
+          queryClient.invalidateQueries({ queryKey: ['users']});
+          toast({ title: "User Deleted", description: "User has been removed."});
+      },
+      onError: (error) => {
+          toast({ title: "Delete Error", description: error.message, variant: "destructive" });
+      }
+  });
+
 
   const handleOpenUserModal = (userToEdit?: AdminUser) => {
     if (userToEdit) {
@@ -117,43 +151,17 @@ export default function AdminUsersPage() {
     setCurrentUserData(prev => ({
         ...prev,
         subscription: newPlan,
-        allowedDevices: planDetails?.maxDevices ?? prev?.allowedDevices ?? 0,
+        allowed_devices: planDetails?.maxDevices ?? prev?.allowed_devices ?? 0,
     }));
   };
   
   const handleSaveUser = async () => { 
     if (!editingUserId || !currentUserData) return;
-
-    const userDocRef = doc(db, "users", editingUserId);
-    
-    try {
-      const dataToUpdate: Partial<AdminUser> = { ...currentUserData };
-      delete dataToUpdate.id;
-
-      await updateDoc(userDocRef, dataToUpdate as any);
-      
-      refetch();
-
-      toast({ title: "User Updated", description: `User ${currentUserData.firstName} ${currentUserData.lastName} has been updated.` });
-      setIsUserModalOpen(false);
-      setCurrentUserData({});
-      setEditingUserId(null);
-
-    } catch (error) {
-       console.error("Error updating user:", error);
-       toast({ title: "Error", description: "Failed to update user.", variant: "destructive" });
-    }
+    updateUserMutation.mutate(currentUserData);
   };
   
   const handleDeleteUser = async (userId: string) => {
-    try {
-      await deleteDoc(doc(db, "users", userId));
-      refetch();
-      toast({ title: "User Deleted", description: "The user has been removed from Firestore.", variant: "destructive" });
-    } catch (error) {
-      console.error("Error deleting user:", error);
-      toast({ title: "Error", description: "Failed to delete user.", variant: "destructive" });
-    }
+    deleteUserMutation.mutate(userId);
   }
 
   const handleOpenNotificationModal = (user: AdminUser) => {
@@ -168,9 +176,9 @@ export default function AdminUsersPage() {
       return;
     }
     
-    userContext.addNotification(`Admin message for ${notificationTargetUser.firstName}: ${notificationMessage}`, 'admin');
+    userContext.addNotification(`Admin message for ${notificationTargetUser.first_name}: ${notificationMessage}`, 'admin');
 
-    toast({ title: "Notification Sent", description: `Message sent to ${notificationTargetUser.firstName} ${notificationTargetUser.lastName}.` });
+    toast({ title: "Notification Sent", description: `Message sent to ${notificationTargetUser.first_name} ${notificationTargetUser.last_name}.` });
     setIsNotificationModalOpen(false);
     setNotificationTargetUser(null);
     setNotificationMessage("");
@@ -178,9 +186,9 @@ export default function AdminUsersPage() {
 
 
   const filteredUsers = users?.filter(user =>
-    `${user.firstName} ${user.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    `${user.first_name} ${user.last_name}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.companyName.toLowerCase().includes(searchTerm.toLowerCase())
+    user.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
   const getStatusBadge = (status: AdminUser['status']) => {
@@ -198,25 +206,24 @@ export default function AdminUsersPage() {
 
   const downloadUsersCSV = () => {
     if (!users) return;
-    const headers = ["ID", "UID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Role", "Subscription", "Allowed Devices", "Joined Date", "Status", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
+    const headers = ["ID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Role", "Subscription", "Allowed Devices", "Joined Date", "Status", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
     const csvRows = [
         headers.join(','),
         ...filteredUsers.map(u => [
             u.id,
-            u.uid,
-            u.firstName,
-            u.lastName,
+            u.first_name,
+            u.last_name,
             u.email,
-            u.whatsappNumber,
-            u.companyName,
+            u.whatsapp_number,
+            u.company_name,
             u.role,
             u.subscription,
-            u.allowedDevices,
-            u.joinedDate ? new Date(u.joinedDate).toLocaleDateString() : 'N/A',
+            u.allowed_devices,
+            u.joined_date ? new Date(u.joined_date).toLocaleDateString() : 'N/A',
             u.status,
-            u.subscriptionExpiryDate ? new Date(u.subscriptionExpiryDate).toLocaleDateString() : 'N/A',
-            u.allowBluetoothControlFeatures,
-            u.allowWaterLeakConfigFeatures
+            u.subscription_expiry_date ? new Date(u.subscription_expiry_date).toLocaleDateString() : 'N/A',
+            u.allow_bluetooth_control,
+            u.allow_water_leak_config
         ].join(','))
     ];
     const csvString = csvRows.join('\r\n');
@@ -243,7 +250,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6 md:space-y-8">
       <PageHeader
         title="Manage Users"
-        description="View, edit, and manage all registered users from Firestore."
+        description="View, edit, and manage all registered users from Supabase."
       >
         <div className="flex gap-2">
           <Button onClick={downloadUsersCSV} variant="outline" disabled={isLoadingUsers || users.length === 0}>
@@ -323,11 +330,11 @@ export default function AdminUsersPage() {
                 <TableCell>
                   <div className="flex items-center gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={user.avatarUrl} alt={`${user.firstName} ${user.lastName}`} data-ai-hint="person avatar" />
-                      <AvatarFallback>{user.firstName?.substring(0, 1)}{user.lastName?.substring(0,1)}</AvatarFallback>
+                      <AvatarImage src={user.avatar_url} alt={`${user.first_name} ${user.last_name}`} data-ai-hint="person avatar" />
+                      <AvatarFallback>{user.first_name?.substring(0, 1)}{user.last_name?.substring(0,1)}</AvatarFallback>
                     </Avatar>
                     <div className="flex flex-col">
-                        <span className="font-medium">{user.firstName} {user.lastName}</span>
+                        <span className="font-medium">{user.first_name} {user.last_name}</span>
                         <span className="text-xs text-muted-foreground">{user.email}</span>
                     </div>
                   </div>
@@ -337,14 +344,14 @@ export default function AdminUsersPage() {
                         {user.role}
                     </Badge>
                 </TableCell>
-                <TableCell>{user.companyName}</TableCell>
+                <TableCell>{user.company_name}</TableCell>
                 <TableCell>{getStatusBadge(user.status)}</TableCell>
                 <TableCell>
                   <Badge variant={user.subscription === "Premium" || user.subscription === "Enterprise" ? "default" : "secondary"}>
                     {user.subscription}
                   </Badge>
                 </TableCell>
-                <TableCell>{new Date(user.joinedDate).toLocaleDateString()}</TableCell>
+                <TableCell>{new Date(user.joined_date).toLocaleDateString()}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -386,17 +393,17 @@ export default function AdminUsersPage() {
           <DialogHeader>
             <DialogTitle>{editingUserId ? "Edit User" : "Add New User"}</DialogTitle>
             <DialogDescription>
-              {editingUserId ? "Update the user's details. Changes will be saved to Firestore." : "Fill in the details for the new user."}
+              {editingUserId ? "Update the user's details. Changes will be saved to Supabase." : "Fill in the details for the new user."}
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4 max-h-[70vh] overflow-y-auto pr-2">
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="firstName" className="text-right">First Name</Label>
-              <Input id="firstName" value={currentUserData.firstName || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, firstName: e.target.value })} className="col-span-3" />
+              <Input id="firstName" value={currentUserData.first_name || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, first_name: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="lastName" className="text-right">Last Name</Label>
-              <Input id="lastName" value={currentUserData.lastName || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, lastName: e.target.value })} className="col-span-3" />
+              <Input id="lastName" value={currentUserData.last_name || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, last_name: e.target.value })} className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="email" className="text-right">Email</Label>
@@ -440,15 +447,15 @@ export default function AdminUsersPage() {
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="allowedDevices" className="text-right">Allowed Devices</Label>
-                <Input id="allowedDevices" type="number" value={currentUserData.allowedDevices || 0} onChange={(e) => setCurrentUserData({...currentUserData, allowedDevices: parseInt(e.target.value) || 0})} className="col-span-3"/>
+                <Input id="allowedDevices" type="number" value={currentUserData.allowed_devices || 0} onChange={(e) => setCurrentUserData({...currentUserData, allowed_devices: parseInt(e.target.value) || 0})} className="col-span-3"/>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="subscriptionExpiryDate" className="text-right">Expiry Date</Label>
                 <Input 
                     id="subscriptionExpiryDate" 
                     type="date" 
-                    value={currentUserData.subscriptionExpiryDate ? currentUserData.subscriptionExpiryDate.split('T')[0] : ''} 
-                    onChange={(e) => setCurrentUserData({...currentUserData, subscriptionExpiryDate: e.target.value ? new Date(e.target.value).toISOString() : undefined})} 
+                    value={currentUserData.subscription_expiry_date ? currentUserData.subscription_expiry_date.split('T')[0] : ''} 
+                    onChange={(e) => setCurrentUserData({...currentUserData, subscription_expiry_date: e.target.value ? new Date(e.target.value).toISOString() : undefined})} 
                     className="col-span-3"
                 />
             </div>
@@ -457,16 +464,16 @@ export default function AdminUsersPage() {
                  <div className="flex items-center space-x-2">
                     <Checkbox 
                         id="allowBluetoothControlFeatures" 
-                        checked={currentUserData.allowBluetoothControlFeatures || false}
-                        onCheckedChange={(checked) => setCurrentUserData({...currentUserData, allowBluetoothControlFeatures: !!checked})}
+                        checked={currentUserData.allow_bluetooth_control || false}
+                        onCheckedChange={(checked) => setCurrentUserData({...currentUserData, allow_bluetooth_control: !!checked})}
                     />
                     <Label htmlFor="allowBluetoothControlFeatures" className="flex items-center gap-1 text-sm font-normal"><Bluetooth className="h-4 w-4"/> Allow Bluetooth Control Features</Label>
                 </div>
                 <div className="flex items-center space-x-2">
                     <Checkbox 
                         id="allowWaterLeakConfigFeatures" 
-                        checked={currentUserData.allowWaterLeakConfigFeatures || false}
-                        onCheckedChange={(checked) => setCurrentUserData({...currentUserData, allowWaterLeakConfigFeatures: !!checked})}
+                        checked={currentUserData.allow_water_leak_config || false}
+                        onCheckedChange={(checked) => setCurrentUserData({...currentUserData, allow_water_leak_config: !!checked})}
                     />
                     <Label htmlFor="allowWaterLeakConfigFeatures" className="flex items-center gap-1 text-sm font-normal"><Droplets className="h-4 w-4"/> Allow Water Leak Config Features</Label>
                 </div>
@@ -474,7 +481,9 @@ export default function AdminUsersPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsUserModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleSaveUser}>Save Changes</Button>
+            <Button onClick={handleSaveUser} disabled={updateUserMutation.isPending}>
+                {updateUserMutation.isPending ? "Saving..." : "Save Changes"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -482,7 +491,7 @@ export default function AdminUsersPage() {
       <Dialog open={isNotificationModalOpen} onOpenChange={setIsNotificationModalOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
-            <DialogTitle>Send Notification to {notificationTargetUser?.firstName}</DialogTitle>
+            <DialogTitle>Send Notification to {notificationTargetUser?.first_name}</DialogTitle>
             <DialogDescription>
               Type your message below. This is a demo and will show as a local toast.
             </DialogDescription>

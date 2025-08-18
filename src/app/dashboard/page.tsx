@@ -35,7 +35,7 @@ export default function DashboardPage() {
     );
   }
 
-  const userName = currentUser?.name || t.dashboard.guest;
+  const userName = currentUser?.first_name || t.dashboard.guest;
   const subscriptionPlan = currentUser?.subscription.planName || t.dashboard.noPlan;
   
   const alertsCount = 0; // Placeholder for future alert system integration

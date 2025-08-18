@@ -21,10 +21,7 @@ import { useUser } from "@/context/user-context";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import { useAdminAuth } from '@/context/admin-auth-context';
-import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
-import type { User } from "@/context/user-context";
+import { supabase } from "@/lib/supabase";
 
 import {
   AlertDialog,
@@ -66,7 +63,10 @@ export function LoginForm() {
     }
     setIsLoading(true);
     try {
-      await sendPasswordResetEmail(auth, resetEmail);
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: `${window.location.origin}/auth/update-password`,
+      });
+      if (error) throw error;
       toast({ title: "Password Reset Email Sent", description: "Please check your inbox to reset your password."});
     } catch (error: any) {
        console.error("Password reset error:", error);
@@ -79,30 +79,46 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
 
-    try {
-        const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
-        const user = userCredential.user;
+    const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: values.email,
+        password: values.password,
+    });
 
-        // After successful auth, get user data from Firestore to check role and status
-        const userDocRef = doc(db, "users", user.uid);
-        const userDoc = await getDoc(userDocRef);
-
-        if (!userDoc.exists()) {
-            throw new Error("User data not found in Firestore. Please contact support.");
+    if (signInError) {
+        let errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        if (signInError.message.includes("Email not confirmed")) {
+            errorMessage = "Please confirm your email address before logging in."
         }
+        toast({ title: "Login Failed", description: errorMessage, variant: "destructive" });
+        setIsLoading(false);
+        return;
+    }
 
-        const userData = userDoc.data();
+    if (signInData.user) {
+        // After successful auth, get user data from 'users' table
+        const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('*')
+            .eq('id', signInData.user.id)
+            .single();
+        
+        if (userError || !userData) {
+            await supabase.auth.signOut();
+            toast({ title: "Login Failed", description: "Could not find user data. Please contact support.", variant: "destructive" });
+            setIsLoading(false);
+            return;
+        }
 
         // Check user status
         if (userData.status === 'pending') {
-          await signOut(auth);
+          await supabase.auth.signOut();
           toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default", duration: 7000 });
           setIsLoading(false);
           return;
         }
 
         if (userData.status === 'rejected') {
-          await signOut(auth);
+          await supabase.auth.signOut();
           toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive", duration: 7000 });
           setIsLoading(false);
           return;
@@ -110,45 +126,18 @@ export function LoginForm() {
         
         // Check user role
         if (userData.role === 'admin' && userData.status === 'active') {
-            const adminLoginSuccess = adminAuth.login(values.email, "admin_placeholder_password"); // Use a placeholder, as Firebase Auth is the source of truth
-             if (adminLoginSuccess) {
-                toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
-                router.push('/admin');
-            } else {
-                 await signOut(auth);
-                toast({ title: "Admin Login Failed", description: "An unexpected error occurred during admin session creation.", variant: "destructive" });
-                setIsLoading(false);
-            }
+            adminAuth.loginAsAdmin();
+            toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
+            router.push('/admin');
         } else if (userData.role === 'user' && userData.status === 'active') {
-             loginUser({
-                id: user.uid,
-                uid: user.uid,
-                name: `${userData.firstName} ${userData.lastName}`,
-                email: userData.email,
-                isLoggedIn: true,
-                ...userData
-            } as User);
+            loginUser(userData);
             toast({ title: "Login Successful", description: "Welcome back!" });
             router.push('/dashboard');
         } else {
-            // This case handles users with unknown roles or inactive admins
-            await signOut(auth);
+            await supabase.auth.signOut();
             toast({ title: "Login Failed", description: "Account status is inactive or role is not recognized.", variant: "destructive" });
             setIsLoading(false);
         }
-
-    } catch (error: any) {
-        console.error("User login error:", error);
-        let errorMessage = "An unexpected error occurred. Please try again.";
-
-        if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-            errorMessage = "Invalid email or password. Please check your credentials and try again.";
-        } else if (error.message.includes("User data not found")) {
-            errorMessage = error.message;
-        }
-        
-        toast({ title: "Login Failed", description: errorMessage, variant: "destructive", duration: 7000 });
-        setIsLoading(false);
     }
   }
 
