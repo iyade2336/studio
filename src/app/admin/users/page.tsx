@@ -60,7 +60,6 @@ export interface AdminUser {
   whatsappNumber: string;
   companyName: string;
   subscription: keyof typeof PLAN_DETAILS; 
-  devices: number; 
   allowedDevices: number; 
   joinedDate: string; 
   avatarUrl?: string;
@@ -509,3 +508,6 @@ export default function AdminUsersPage() {
     </div>
   );
 }
+
+
+    
