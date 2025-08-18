@@ -96,18 +96,49 @@ export function LoginForm() {
 
     if (signInData.user) {
         // After successful auth, get user data from 'users' table
-        const { data: userData, error: userError } = await supabase
+        let { data: userData, error: userError } = await supabase
             .from('users')
             .select('*')
             .eq('id', signInData.user.id)
             .single();
         
-        if (userError || !userData) {
+        // If user data doesn't exist, create it on-the-fly.
+        // This handles users added manually in Supabase Auth.
+        if (userError && userError.code === 'PGRST116') { // PGRST116 = 'No rows found'
+            console.log("User profile not found, creating one...");
+            const { data: newUserProfile, error: creationError } = await supabase
+                .from('users')
+                .insert({
+                    id: signInData.user.id,
+                    email: signInData.user.email,
+                    first_name: signInData.user.user_metadata?.first_name || 'New',
+                    last_name: signInData.user.user_metadata?.last_name || 'User',
+                    company_name: signInData.user.user_metadata?.company_name || 'N/A',
+                })
+                .select()
+                .single();
+
+            if (creationError) {
+                await supabase.auth.signOut();
+                toast({ title: "Login Failed", description: `Could not create user profile: ${creationError.message}`, variant: "destructive" });
+                setIsLoading(false);
+                return;
+            }
+            userData = newUserProfile;
+        } else if (userError) {
             await supabase.auth.signOut();
-            toast({ title: "Login Failed", description: "Could not find user data. Please contact support.", variant: "destructive" });
+            toast({ title: "Login Failed", description: `Database error: ${userError.message}`, variant: "destructive" });
             setIsLoading(false);
             return;
         }
+
+        if (!userData) {
+             await supabase.auth.signOut();
+             toast({ title: "Login Failed", description: "Could not find or create user data. Please contact support.", variant: "destructive" });
+             setIsLoading(false);
+             return;
+        }
+
 
         // Check user role
         if (userData.role === 'admin') {
@@ -205,3 +236,5 @@ export function LoginForm() {
     </Card>
   );
 }
+
+    
