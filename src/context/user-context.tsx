@@ -118,11 +118,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
                 signOut(auth); // Sign out from firebase auth
                 setCurrentUser(MOCK_USER_LOGGED_OUT);
                 setIsLoading(false);
-                if (userDataFromDb.status === 'pending') {
-                    toast({ title: "Account Pending", description: "Your account is still awaiting admin approval." });
-                } else if (userDataFromDb.status === 'rejected') {
-                    toast({ title: "Account Rejected", description: "Your account registration has been rejected by an administrator.", variant: "destructive" });
-                }
+                // The login form itself will now handle showing the specific toast message.
+                // This avoids double-toasting or showing a toast when the app loads.
                 router.push('/auth/login');
                 return;
             }

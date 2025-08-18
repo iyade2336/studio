@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAdminAuth } from '@/context/admin-auth-context';
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
 
 import {
   AlertDialog,
@@ -112,13 +112,15 @@ export function LoginForm() {
         const userData = userDoc.data();
 
         if (userData.status === 'pending') {
-          toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default" });
+          await signOut(auth);
+          toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default", duration: 7000 });
           setIsLoading(false);
           return;
         }
 
         if (userData.status === 'rejected') {
-          toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive" });
+          await signOut(auth);
+          toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive", duration: 7000 });
           setIsLoading(false);
           return;
         }
@@ -130,16 +132,12 @@ export function LoginForm() {
                 name: `${userData.firstName} ${userData.lastName}`,
                 email: userData.email,
                 isLoggedIn: true,
-                subscription: userData.subscription, // This is now the object from firestore
-                firstName: userData.firstName,
-                lastName: userData.lastName,
-                companyName: userData.companyName,
-                whatsappNumber: userData.whatsappNumber,
-                ...userData // spread the rest of the fields like feature flags
-            });
+                ...userData
+            } as User);
             toast({ title: "Login Successful", description: "Welcome back!" });
             router.push('/dashboard');
         } else {
+            await signOut(auth);
             toast({ title: "Login Failed", description: "Account status unknown or inactive.", variant: "destructive" });
             setIsLoading(false);
         }
@@ -147,10 +145,26 @@ export function LoginForm() {
     } catch (error: any) {
         console.error("User login error:", error);
         let errorMessage = "An unexpected error occurred. Please try again.";
+
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-            errorMessage = "Invalid email or password. Please check your credentials and try again.";
+            // Check if user exists but is pending/rejected
+            const usersRef = collection(db, "users");
+            const q = query(usersRef, where("email", "==", values.email));
+            const querySnapshot = await getDocs(q);
+            if (!querySnapshot.empty) {
+                const userDoc = querySnapshot.docs[0].data();
+                 if (userDoc.status === 'pending') {
+                    errorMessage = "Your account is awaiting admin approval. You will be notified once it's active.";
+                } else if (userDoc.status === 'rejected') {
+                    errorMessage = "Your account registration has been rejected by an administrator.";
+                } else {
+                    errorMessage = "Invalid email or password. Please check your credentials and try again.";
+                }
+            } else {
+                 errorMessage = "Invalid email or password. Please check your credentials and try again.";
+            }
         }
-        toast({ title: "Login Failed", description: errorMessage, variant: "destructive" });
+        toast({ title: "Login Failed", description: errorMessage, variant: "destructive", duration: 7000 });
         setIsLoading(false);
     }
   }
