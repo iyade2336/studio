@@ -65,13 +65,6 @@ export function RegisterForm() {
                 company_name: values.companyName,
                 whatsapp_number: values.whatsappNumber,
                 avatar_url: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
-                // Passing other details to the trigger via metadata
-                status: 'pending',
-                role: 'user',
-                subscription: "None",
-                allowed_devices: 0,
-                allow_bluetooth_control: false,
-                allow_water_leak_config: false,
             }
         }
     });
@@ -87,9 +80,10 @@ export function RegisterForm() {
     }
 
     if (signUpData.user) {
+        // The `handle_new_user` function in Supabase will create the user profile with default 'active' status
         toast({
             title: "Registration Successful!",
-            description: "Your account is now pending admin approval. Please check your email to confirm your address.",
+            description: "Please check your email to confirm your address. You can log in after verification.",
             duration: 9000,
         });
         form.reset();
@@ -102,7 +96,7 @@ export function RegisterForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Create an Account</CardTitle>
-        <CardDescription>Join IoT Guardian to monitor your devices. Your account will require admin approval.</CardDescription>
+        <CardDescription>Join IoT Guardian to monitor your devices. You can log in immediately after verifying your email.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>

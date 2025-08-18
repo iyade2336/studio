@@ -109,33 +109,18 @@ export function LoginForm() {
             return;
         }
 
-        // Check user status
-        if (userData.status === 'pending') {
-          await supabase.auth.signOut();
-          toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default", duration: 7000 });
-          setIsLoading(false);
-          return;
-        }
-
-        if (userData.status === 'rejected') {
-          await supabase.auth.signOut();
-          toast({ title: "Login Failed", description: "Your account registration has been rejected.", variant: "destructive", duration: 7000 });
-          setIsLoading(false);
-          return;
-        }
-        
         // Check user role
-        if (userData.role === 'admin' && userData.status === 'active') {
+        if (userData.role === 'admin') {
             adminAuth.loginAsAdmin();
             toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
             router.push('/admin');
-        } else if (userData.role === 'user' && userData.status === 'active') {
+        } else if (userData.role === 'user') {
             loginUser(userData);
             toast({ title: "Login Successful", description: "Welcome back!" });
             router.push('/dashboard');
         } else {
             await supabase.auth.signOut();
-            toast({ title: "Login Failed", description: "Account status is inactive or role is not recognized.", variant: "destructive" });
+            toast({ title: "Login Failed", description: "Your account role is not recognized.", variant: "destructive" });
             setIsLoading(false);
         }
     }

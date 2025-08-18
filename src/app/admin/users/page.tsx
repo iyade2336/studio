@@ -61,7 +61,6 @@ export interface AdminUser {
   allowed_devices: number; 
   joined_date: string; 
   avatar_url?: string;
-  status: 'pending' | 'active' | 'rejected';
   role: 'user' | 'admin';
   allow_bluetooth_control: boolean;
   allow_water_leak_config: boolean;
@@ -91,7 +90,6 @@ const deleteUser = async (userId: string) => {
 
 
 const subscriptionOptions = Object.keys(PLAN_DETAILS) as Array<keyof typeof PLAN_DETAILS>;
-const statusOptions: AdminUser["status"][] = ["pending", "active", "rejected"];
 const roleOptions: AdminUser["role"][] = ["user", "admin"];
 
 export default function AdminUsersPage() {
@@ -191,22 +189,9 @@ export default function AdminUsersPage() {
     user.company_name.toLowerCase().includes(searchTerm.toLowerCase())
   ) || [];
 
-  const getStatusBadge = (status: AdminUser['status']) => {
-    switch (status) {
-      case 'active':
-        return <Badge className="bg-green-500 hover:bg-green-600 text-primary-foreground"><CheckCircle className="mr-1 h-3 w-3"/>Active</Badge>;
-      case 'pending':
-        return <Badge variant="secondary" className="bg-yellow-500 hover:bg-yellow-600 text-primary-foreground"><Clock className="mr-1 h-3 w-3"/>Pending</Badge>;
-      case 'rejected':
-        return <Badge variant="destructive"><XCircle className="mr-1 h-3 w-3"/>Rejected</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
-    }
-  };
-
   const downloadUsersCSV = () => {
     if (!users) return;
-    const headers = ["ID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Role", "Subscription", "Allowed Devices", "Joined Date", "Status", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
+    const headers = ["ID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Role", "Subscription", "Allowed Devices", "Joined Date", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
     const csvRows = [
         headers.join(','),
         ...filteredUsers.map(u => [
@@ -220,7 +205,6 @@ export default function AdminUsersPage() {
             u.subscription,
             u.allowed_devices,
             u.joined_date ? new Date(u.joined_date).toLocaleDateString() : 'N/A',
-            u.status,
             u.subscription_expiry_date ? new Date(u.subscription_expiry_date).toLocaleDateString() : 'N/A',
             u.allow_bluetooth_control,
             u.allow_water_leak_config
@@ -243,8 +227,8 @@ export default function AdminUsersPage() {
   };
 
   const totalUsers = users?.length || 0;
-  const activeUsers = users?.filter(u => u.status === 'active').length || 0;
-  const pendingUsers = users?.filter(u => u.status === 'pending').length || 0;
+  const adminUsers = users?.filter(u => u.role === 'admin').length || 0;
+
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -262,7 +246,7 @@ export default function AdminUsersPage() {
         </div>
       </PageHeader>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Users</CardTitle>
@@ -274,20 +258,11 @@ export default function AdminUsersPage() {
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Active Users</CardTitle>
-            <UserCheck className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{isLoadingUsers ? <Skeleton className="h-8 w-12"/> : activeUsers}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending Approval</CardTitle>
+            <CardTitle className="text-sm font-medium">Admin Users</CardTitle>
             <UserCog className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{isLoadingUsers ? <Skeleton className="h-8 w-12"/> : pendingUsers}</div>
+            <div className="text-2xl font-bold">{isLoadingUsers ? <Skeleton className="h-8 w-12"/> : adminUsers}</div>
           </CardContent>
         </Card>
       </div>
@@ -313,7 +288,6 @@ export default function AdminUsersPage() {
               <TableHead>User</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Company</TableHead>
-              <TableHead>Status</TableHead>
               <TableHead>Subscription</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -322,7 +296,7 @@ export default function AdminUsersPage() {
           <TableBody>
             {isLoadingUsers && [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                    <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
+                    <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
             ))}
             {!isLoadingUsers && filteredUsers.map((user) => (
@@ -345,7 +319,6 @@ export default function AdminUsersPage() {
                     </Badge>
                 </TableCell>
                 <TableCell>{user.company_name}</TableCell>
-                <TableCell>{getStatusBadge(user.status)}</TableCell>
                 <TableCell>
                   <Badge variant={user.subscription === "Premium" || user.subscription === "Enterprise" ? "default" : "secondary"}>
                     {user.subscription}
@@ -379,7 +352,7 @@ export default function AdminUsersPage() {
             ))}
             {!isLoadingUsers && filteredUsers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No users found.
                 </TableCell>
               </TableRow>
@@ -418,18 +391,6 @@ export default function AdminUsersPage() {
                 <SelectTrigger className="col-span-3"><SelectValue placeholder="Select role" /></SelectTrigger>
                 <SelectContent>
                   {roleOptions.map(option => <SelectItem key={option} value={option}>{option.charAt(0).toUpperCase() + option.slice(1)}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="status" className="text-right">Status</Label>
-              <Select 
-                value={currentUserData.status || "pending"} 
-                onValueChange={(value) => setCurrentUserData({ ...currentUserData, status: value as AdminUser['status'] })}
-              >
-                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select status" /></SelectTrigger>
-                <SelectContent>
-                  {statusOptions.map(option => <SelectItem key={option} value={option}>{option.charAt(0).toUpperCase() + option.slice(1)}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

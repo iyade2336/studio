@@ -25,11 +25,11 @@ export function AdminAuthProvider({ children }: { children: ReactNode }) {
     if (user) {
       const { data: userData, error } = await supabase
         .from('users')
-        .select('role, status')
+        .select('role')
         .eq('id', user.id)
         .single();
 
-      if (userData && userData.role === 'admin' && userData.status === 'active') {
+      if (userData && userData.role === 'admin') {
         setIsAdmin(true);
       } else {
         setIsAdmin(false);

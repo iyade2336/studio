@@ -28,7 +28,6 @@ export interface User {
   company_name: string;
   isLoggedIn: boolean;
   subscription: Subscription;
-  status: 'pending' | 'active' | 'rejected';
   role: 'user' | 'admin';
   allow_bluetooth_control: boolean;
   allow_water_leak_config: boolean;
@@ -77,7 +76,6 @@ const MOCK_USER_LOGGED_OUT: User = {
   whatsapp_number: '',
   company_name: '',
   isLoggedIn: false,
-  status: 'pending',
   role: 'user',
   allow_bluetooth_control: false,
   allow_water_leak_config: false,
@@ -106,7 +104,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         .single();
         
       if (data && !error) {
-        if (data.status !== 'active' || data.role !== 'user') {
+        if (data.role !== 'user') {
           setCurrentUser(MOCK_USER_LOGGED_OUT);
           setIsLoading(false);
           return;
