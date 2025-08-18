@@ -80,7 +80,7 @@ export function RegisterForm() {
     }
 
     if (signUpData.user) {
-        // The `handle_new_user` function in Supabase will create the user profile with default 'active' status
+        // The `handle_new_user` function in Supabase will create the user profile.
         toast({
             title: "Registration Successful!",
             description: "Please check your email to confirm your address. You can log in after verification.",
