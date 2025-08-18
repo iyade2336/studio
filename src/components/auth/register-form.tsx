@@ -53,6 +53,8 @@ export function RegisterForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     
+    // The database trigger 'handle_new_user' will automatically create a
+    // corresponding entry in the 'public.users' table.
     const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
         email: values.email,
         password: values.password,
@@ -63,6 +65,13 @@ export function RegisterForm() {
                 company_name: values.companyName,
                 whatsapp_number: values.whatsappNumber,
                 avatar_url: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
+                // Passing other details to the trigger via metadata
+                status: 'pending',
+                role: 'user',
+                subscription: "None",
+                allowed_devices: 0,
+                allow_bluetooth_control: false,
+                allow_water_leak_config: false,
             }
         }
     });
@@ -78,33 +87,6 @@ export function RegisterForm() {
     }
 
     if (signUpData.user) {
-        // Now also add the user to our public.users table
-        const { error: insertError } = await supabase.from('users').insert({
-            id: signUpData.user.id,
-            first_name: values.firstName,
-            last_name: values.lastName,
-            email: values.email,
-            whatsapp_number: values.whatsappNumber,
-            company_name: values.companyName,
-            avatar_url: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
-            status: 'pending',
-            role: 'user',
-            subscription: "None",
-            allowed_devices: 0,
-            allow_bluetooth_control: false,
-            allow_water_leak_config: false,
-        });
-
-        if (insertError) {
-            toast({
-                title: "Registration Failed",
-                description: `Could not save user details: ${insertError.message}`,
-                variant: "destructive",
-            });
-            setIsLoading(false);
-            return;
-        }
-
         toast({
             title: "Registration Successful!",
             description: "Your account is now pending admin approval. Please check your email to confirm your address.",
