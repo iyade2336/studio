@@ -68,6 +68,7 @@ export function RegisterForm() {
         whatsappNumber: values.whatsappNumber,
         companyName: values.companyName,
         status: 'pending',
+        role: 'user', // Default role for new registrations
         subscription: "None",
         allowedDevices: 0,
         joinedDate: new Date().toISOString(),

@@ -9,7 +9,6 @@ import { onAuthStateChanged, signOut, type User as FirebaseUser } from 'firebase
 import { auth, db } from '@/lib/firebase';
 import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 
-// Keep the Subscription interface to define the shape of the subscription object
 export interface Subscription {
   planName: string;
   expiryDate: string; 
@@ -20,11 +19,10 @@ export interface Subscription {
   canAccessAiTroubleshooter: boolean;
 }
 
-// User interface now more closely mirrors the Firestore document
 export interface User {
-  id: string; // This will be the Firestore document ID (same as uid)
-  uid: string; // Firebase Auth UID
-  name: string; // Combined Full Name
+  id: string;
+  uid: string;
+  name: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -33,6 +31,7 @@ export interface User {
   isLoggedIn: boolean;
   subscription: Subscription;
   status: 'pending' | 'active' | 'rejected';
+  role: 'user' | 'admin';
   allowBluetoothControlFeatures: boolean;
   allowWaterLeakConfigFeatures: boolean;
 }
@@ -51,7 +50,7 @@ interface UserContextType {
   isLoading: boolean;
   notifications: AppNotification[];
   unreadNotificationCount: number;
-  loginUser: (userData: User) => void; // Kept for manual login if needed, but flow changes
+  loginUser: (userData: User) => void;
   logoutUser: () => void;
   addNotification: (message: string, type: AppNotification['type']) => void;
   markNotificationAsRead: (notificationId: string) => void;
@@ -83,6 +82,7 @@ const MOCK_USER_LOGGED_OUT: User = {
   companyName: '',
   isLoggedIn: false,
   status: 'pending',
+  role: 'user',
   allowBluetoothControlFeatures: false,
   allowWaterLeakConfigFeatures: false,
   subscription: {
@@ -104,18 +104,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser: FirebaseUser | null) => {
       if (firebaseUser) {
-        // User is signed in, get their data from Firestore.
         const userDocRef = doc(db, "users", firebaseUser.uid);
         try {
             const docSnap = await getDoc(userDocRef);
             if (docSnap.exists()) {
                 const userDataFromDb = docSnap.data();
 
-                if (userDataFromDb.status !== 'active') {
-                    signOut(auth);
+                // If user is not an active user, sign them out from this context
+                if (userDataFromDb.status !== 'active' || userDataFromDb.role !== 'user') {
+                    // Don't sign out from Firebase here, as Admin context might need it
                     setCurrentUser(MOCK_USER_LOGGED_OUT);
                     setIsLoading(false);
-                    router.push('/auth/login');
                     return;
                 }
 
@@ -133,6 +132,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                   whatsappNumber: userDataFromDb.whatsappNumber,
                   companyName: userDataFromDb.companyName,
                   status: userDataFromDb.status,
+                  role: userDataFromDb.role,
                   allowBluetoothControlFeatures: userDataFromDb.allowBluetoothControlFeatures,
                   allowWaterLeakConfigFeatures: userDataFromDb.allowWaterLeakConfigFeatures,
                   subscription: {
@@ -152,7 +152,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
             }
         } catch (error) {
             console.error("Error fetching user document:", error);
-            // This could be a permission error. Log out the user to be safe.
             signOut(auth);
             setCurrentUser(MOCK_USER_LOGGED_OUT);
         } finally {

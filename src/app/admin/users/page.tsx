@@ -64,6 +64,7 @@ export interface AdminUser {
   joinedDate: string; 
   avatarUrl?: string;
   status: 'pending' | 'active' | 'rejected';
+  role: 'user' | 'admin';
   allowBluetoothControlFeatures: boolean;
   allowWaterLeakConfigFeatures: boolean;
   subscriptionExpiryDate?: string; 
@@ -80,6 +81,7 @@ const fetchUsers = async (): Promise<AdminUser[]> => {
 
 const subscriptionOptions = Object.keys(PLAN_DETAILS) as Array<keyof typeof PLAN_DETAILS>;
 const statusOptions: AdminUser["status"][] = ["pending", "active", "rejected"];
+const roleOptions: AdminUser["role"][] = ["user", "admin"];
 
 export default function AdminUsersPage() {
   const queryClient = useQueryClient();
@@ -104,8 +106,6 @@ export default function AdminUsersPage() {
       setCurrentUserData(userToEdit);
       setEditingUserId(userToEdit.id);
     } else {
-      // Logic for adding a new user from admin panel is complex with Auth.
-      // For now, we focus on editing existing users who signed up.
       toast({ title: "Action Disabled", description: "Please have new users register through the registration form." });
       return;
     }
@@ -128,11 +128,11 @@ export default function AdminUsersPage() {
     
     try {
       const dataToUpdate: Partial<AdminUser> = { ...currentUserData };
-      delete dataToUpdate.id; // Don't save the document id inside the document
+      delete dataToUpdate.id;
 
       await updateDoc(userDocRef, dataToUpdate as any);
       
-      refetch(); // Refetch the users list
+      refetch();
 
       toast({ title: "User Updated", description: `User ${currentUserData.firstName} ${currentUserData.lastName} has been updated.` });
       setIsUserModalOpen(false);
@@ -146,8 +146,6 @@ export default function AdminUsersPage() {
   };
   
   const handleDeleteUser = async (userId: string) => {
-    // In a real app, this should also delete the user from Firebase Auth, which is a protected admin action.
-    // For now, we will just delete the Firestore document.
     try {
       await deleteDoc(doc(db, "users", userId));
       refetch();
@@ -170,8 +168,6 @@ export default function AdminUsersPage() {
       return;
     }
     
-    // In a real app, this would send a push notification or save to a 'notifications' subcollection for that user.
-    // Here, we just use the local toast for demonstration.
     userContext.addNotification(`Admin message for ${notificationTargetUser.firstName}: ${notificationMessage}`, 'admin');
 
     toast({ title: "Notification Sent", description: `Message sent to ${notificationTargetUser.firstName} ${notificationTargetUser.lastName}.` });
@@ -202,7 +198,7 @@ export default function AdminUsersPage() {
 
   const downloadUsersCSV = () => {
     if (!users) return;
-    const headers = ["ID", "UID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Subscription", "Allowed Devices", "Joined Date", "Status", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
+    const headers = ["ID", "UID", "First Name", "Last Name", "Email", "WhatsApp", "Company", "Role", "Subscription", "Allowed Devices", "Joined Date", "Status", "Expiry Date", "Bluetooth Feature", "Water Leak Feature"];
     const csvRows = [
         headers.join(','),
         ...filteredUsers.map(u => [
@@ -213,6 +209,7 @@ export default function AdminUsersPage() {
             u.email,
             u.whatsappNumber,
             u.companyName,
+            u.role,
             u.subscription,
             u.allowedDevices,
             u.joinedDate ? new Date(u.joinedDate).toLocaleDateString() : 'N/A',
@@ -307,11 +304,10 @@ export default function AdminUsersPage() {
           <TableHeader>
             <TableRow>
               <TableHead>User</TableHead>
-              <TableHead>Email</TableHead>
+              <TableHead>Role</TableHead>
               <TableHead>Company</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Subscription</TableHead>
-              <TableHead className="text-center">Allowed Devices</TableHead>
               <TableHead>Joined</TableHead>
               <TableHead className="text-right">Actions</TableHead>
             </TableRow>
@@ -319,7 +315,7 @@ export default function AdminUsersPage() {
           <TableBody>
             {isLoadingUsers && [...Array(5)].map((_, i) => (
                 <TableRow key={i}>
-                    <TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell>
+                    <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
             ))}
             {!isLoadingUsers && filteredUsers.map((user) => (
@@ -330,10 +326,17 @@ export default function AdminUsersPage() {
                       <AvatarImage src={user.avatarUrl} alt={`${user.firstName} ${user.lastName}`} data-ai-hint="person avatar" />
                       <AvatarFallback>{user.firstName?.substring(0, 1)}{user.lastName?.substring(0,1)}</AvatarFallback>
                     </Avatar>
-                    <span className="font-medium">{user.firstName} {user.lastName}</span>
+                    <div className="flex flex-col">
+                        <span className="font-medium">{user.firstName} {user.lastName}</span>
+                        <span className="text-xs text-muted-foreground">{user.email}</span>
+                    </div>
                   </div>
                 </TableCell>
-                <TableCell>{user.email}</TableCell>
+                <TableCell>
+                    <Badge variant={user.role === 'admin' ? "destructive" : "secondary"}>
+                        {user.role}
+                    </Badge>
+                </TableCell>
                 <TableCell>{user.companyName}</TableCell>
                 <TableCell>{getStatusBadge(user.status)}</TableCell>
                 <TableCell>
@@ -341,7 +344,6 @@ export default function AdminUsersPage() {
                     {user.subscription}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-center">{user.allowedDevices}</TableCell>
                 <TableCell>{new Date(user.joinedDate).toLocaleDateString()}</TableCell>
                 <TableCell className="text-right">
                   <DropdownMenu>
@@ -370,7 +372,7 @@ export default function AdminUsersPage() {
             ))}
             {!isLoadingUsers && filteredUsers.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={7} className="h-24 text-center">
                   No users found.
                 </TableCell>
               </TableRow>
@@ -401,12 +403,16 @@ export default function AdminUsersPage() {
               <Input id="email" type="email" value={currentUserData.email || ""} disabled className="col-span-3" />
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="whatsappNumber" className="text-right">WhatsApp</Label>
-              <Input id="whatsappNumber" value={currentUserData.whatsappNumber || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, whatsappNumber: e.target.value })} className="col-span-3" />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="companyName" className="text-right">Company</Label>
-              <Input id="companyName" value={currentUserData.companyName || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, companyName: e.target.value })} className="col-span-3" />
+              <Label htmlFor="role" className="text-right">Role</Label>
+              <Select 
+                value={currentUserData.role || "user"} 
+                onValueChange={(value) => setCurrentUserData({ ...currentUserData, role: value as AdminUser['role'] })}
+              >
+                <SelectTrigger className="col-span-3"><SelectValue placeholder="Select role" /></SelectTrigger>
+                <SelectContent>
+                  {roleOptions.map(option => <SelectItem key={option} value={option}>{option.charAt(0).toUpperCase() + option.slice(1)}</SelectItem>)}
+                </SelectContent>
+              </Select>
             </div>
             <div className="grid grid-cols-4 items-center gap-4">
               <Label htmlFor="status" className="text-right">Status</Label>
@@ -445,10 +451,6 @@ export default function AdminUsersPage() {
                     onChange={(e) => setCurrentUserData({...currentUserData, subscriptionExpiryDate: e.target.value ? new Date(e.target.value).toISOString() : undefined})} 
                     className="col-span-3"
                 />
-            </div>
-             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="avatarUrl" className="text-right">Avatar URL</Label>
-              <Input id="avatarUrl" value={currentUserData.avatarUrl || ""} onChange={(e) => setCurrentUserData({ ...currentUserData, avatarUrl: e.target.value })} className="col-span-3" placeholder="Optional image URL" />
             </div>
              <div className="col-span-4 space-y-2 border-t pt-4 mt-2">
                 <Label className="font-semibold text-base">Feature Flags:</Label>
@@ -508,6 +510,3 @@ export default function AdminUsersPage() {
     </div>
   );
 }
-
-
-    

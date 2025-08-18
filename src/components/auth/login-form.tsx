@@ -23,7 +23,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAdminAuth } from '@/context/admin-auth-context';
 import { auth, db } from "@/lib/firebase";
 import { signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from "firebase/auth";
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import type { User } from "@/context/user-context";
 
 import {
@@ -37,11 +37,6 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-
-
-const ADMIN_EMAIL = "admin@admin.com";
-const ADMIN_PASSWORD = "123456789";
-
 
 const formSchema = z.object({
   email: z.string().email({ message: "Please enter a valid email." }),
@@ -81,37 +76,24 @@ export function LoginForm() {
     }
   };
 
-
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
 
-    // Admin login check
-    if (values.email === ADMIN_EMAIL && values.password === ADMIN_PASSWORD) {
-      const adminLoginSuccess = adminAuth.login(values.email, values.password);
-      if (adminLoginSuccess) {
-        toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
-        router.push('/admin');
-      } else {
-        toast({ title: "Admin Login Failed", description: "An unexpected error occurred.", variant: "destructive" });
-        setIsLoading(false);
-      }
-      return;
-    }
-
-    // Regular user login
     try {
         const userCredential = await signInWithEmailAndPassword(auth, values.email, values.password);
         const user = userCredential.user;
 
+        // After successful auth, get user data from Firestore to check role and status
         const userDocRef = doc(db, "users", user.uid);
         const userDoc = await getDoc(userDocRef);
 
         if (!userDoc.exists()) {
-            throw new Error("User data not found in Firestore.");
+            throw new Error("User data not found in Firestore. Please contact support.");
         }
 
         const userData = userDoc.data();
 
+        // Check user status
         if (userData.status === 'pending') {
           await signOut(auth);
           toast({ title: "Login Pending", description: "Your account is awaiting admin approval.", variant: "default", duration: 7000 });
@@ -126,7 +108,18 @@ export function LoginForm() {
           return;
         }
         
-        if (userData.status === 'active') {
+        // Check user role
+        if (userData.role === 'admin' && userData.status === 'active') {
+            const adminLoginSuccess = adminAuth.login(values.email, "admin_placeholder_password"); // Use a placeholder, as Firebase Auth is the source of truth
+             if (adminLoginSuccess) {
+                toast({ title: "Admin Login Successful", description: "Redirecting to admin dashboard..." });
+                router.push('/admin');
+            } else {
+                 await signOut(auth);
+                toast({ title: "Admin Login Failed", description: "An unexpected error occurred during admin session creation.", variant: "destructive" });
+                setIsLoading(false);
+            }
+        } else if (userData.role === 'user' && userData.status === 'active') {
              loginUser({
                 id: user.uid,
                 uid: user.uid,
@@ -138,8 +131,9 @@ export function LoginForm() {
             toast({ title: "Login Successful", description: "Welcome back!" });
             router.push('/dashboard');
         } else {
+            // This case handles users with unknown roles or inactive admins
             await signOut(auth);
-            toast({ title: "Login Failed", description: "Account status unknown or inactive.", variant: "destructive" });
+            toast({ title: "Login Failed", description: "Account status is inactive or role is not recognized.", variant: "destructive" });
             setIsLoading(false);
         }
 
@@ -148,23 +142,11 @@ export function LoginForm() {
         let errorMessage = "An unexpected error occurred. Please try again.";
 
         if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
-            // Check if user exists but is pending/rejected
-            const usersRef = collection(db, "users");
-            const q = query(usersRef, where("email", "==", values.email));
-            const querySnapshot = await getDocs(q);
-            if (!querySnapshot.empty) {
-                const userDoc = querySnapshot.docs[0].data();
-                 if (userDoc.status === 'pending') {
-                    errorMessage = "Your account is awaiting admin approval. You will be notified once it's active.";
-                } else if (userDoc.status === 'rejected') {
-                    errorMessage = "Your account registration has been rejected by an administrator.";
-                } else {
-                    errorMessage = "Invalid email or password. Please check your credentials and try again.";
-                }
-            } else {
-                 errorMessage = "Invalid email or password. Please check your credentials and try again.";
-            }
+            errorMessage = "Invalid email or password. Please check your credentials and try again.";
+        } else if (error.message.includes("User data not found")) {
+            errorMessage = error.message;
         }
+        
         toast({ title: "Login Failed", description: errorMessage, variant: "destructive", duration: 7000 });
         setIsLoading(false);
     }
