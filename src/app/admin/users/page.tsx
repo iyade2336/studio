@@ -46,7 +46,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useUser } from "@/context/user-context"; 
 import { PLAN_DETAILS } from "@/context/user-context";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { collection, query, doc, updateDoc, deleteDoc, getDocs } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -83,6 +83,7 @@ const subscriptionOptions = Object.keys(PLAN_DETAILS) as Array<keyof typeof PLAN
 const statusOptions: AdminUser["status"][] = ["pending", "active", "rejected"];
 
 export default function AdminUsersPage() {
+  const queryClient = useQueryClient();
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isNotificationModalOpen, setIsNotificationModalOpen] = useState(false);
   const [notificationMessage, setNotificationMessage] = useState("");
@@ -93,7 +94,7 @@ export default function AdminUsersPage() {
   const { toast } = useToast();
   const userContext = useUser(); 
 
-  const { data: users, isLoading: isLoadingUsers, refetch } = useQuery<AdminUser[]>({
+  const { data: users = [], isLoading: isLoadingUsers, refetch } = useQuery<AdminUser[]>({
     queryKey: ['users'],
     queryFn: fetchUsers,
   });
@@ -249,7 +250,7 @@ export default function AdminUsersPage() {
         description="View, edit, and manage all registered users from Firestore."
       >
         <div className="flex gap-2">
-          <Button onClick={downloadUsersCSV} variant="outline">
+          <Button onClick={downloadUsersCSV} variant="outline" disabled={isLoadingUsers || users.length === 0}>
             <Download className="mr-2 h-4 w-4" /> Download CSV
           </Button>
           <Button onClick={() => handleOpenUserModal()} disabled>
@@ -265,7 +266,7 @@ export default function AdminUsersPage() {
             <UsersIcon className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{totalUsers}</div>
+            <div className="text-2xl font-bold">{isLoadingUsers ? <Skeleton className="h-8 w-12"/> : totalUsers}</div>
           </CardContent>
         </Card>
         <Card>
@@ -274,7 +275,7 @@ export default function AdminUsersPage() {
             <UserCheck className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{activeUsers}</div>
+            <div className="text-2xl font-bold">{isLoadingUsers ? <Skeleton className="h-8 w-12"/> : activeUsers}</div>
           </CardContent>
         </Card>
         <Card>
@@ -283,7 +284,7 @@ export default function AdminUsersPage() {
             <UserCog className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pendingUsers}</div>
+            <div className="text-2xl font-bold">{isLoadingUsers ? <Skeleton className="h-8 w-12"/> : pendingUsers}</div>
           </CardContent>
         </Card>
       </div>
