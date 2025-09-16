@@ -20,6 +20,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bell, UserCircle, LogOut, CreditCard, CheckCircle, Circle, Trash2, Home, LayoutDashboard, UserPlus, Settings, Briefcase, Info, Languages, Moon, Sun, ShieldCheck } from 'lucide-react';
@@ -290,3 +291,5 @@ export function MainLayout({ children }: MainLayoutProps) {
     </SidebarProvider>
   );
 }
+
+    
