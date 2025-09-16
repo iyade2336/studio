@@ -26,24 +26,31 @@ import { MoreHorizontal } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
 
 interface Device {
-  id: string; 
-  device_id: string;
+  // Matching the local API response structure
+  deviceId: string;
   name?: string;
-  owner?: string;
+  owner?: string; // This might not be available from the local API
   status: 'online' | 'offline' | 'warning' | 'danger';
   last_seen: string | null;
   type?: string;
 }
 
 const fetchDevices = async (): Promise<Device[]> => {
-  const { data, error } = await supabase.from('devices').select('*');
-  if (error) throw new Error(error.message);
-  return data as Device[];
+  const response = await fetch('/api/sensor-data');
+  if (!response.ok) throw new Error('Failed to fetch devices');
+  const data = await response.json();
+  // Map the local API response to the expected Device interface
+  return data.map((d: any) => ({
+    deviceId: d.deviceId,
+    name: d.deviceId, // Use deviceId as name
+    status: d.status,
+    last_seen: d.last_seen,
+    type: 'Unknown',
+  }));
 };
 
 export default function AdminDevicesPage() {
@@ -59,13 +66,12 @@ export default function AdminDevicesPage() {
       toast({ title: "No data to export" });
       return;
     }
-    const headers = ["Device ID", "Name", "Owner", "Status", "Last Seen", "Type"];
+    const headers = ["Device ID", "Name", "Status", "Last Seen", "Type"];
     const csvRows = [
         headers.join(','),
         ...filteredDevices.map(d => [
-            d.device_id,
+            d.deviceId,
             d.name || 'N/A',
-            d.owner || 'N/A',
             d.status,
             d.last_seen ? new Date(d.last_seen).toLocaleString() : 'N/A',
             d.type || 'N/A'
@@ -90,9 +96,8 @@ export default function AdminDevicesPage() {
   const filteredDevices = devices.filter(device => {
     const searchLower = searchTerm.toLowerCase();
     return (
-      device.device_id.toLowerCase().includes(searchLower) ||
-      (device.name && device.name.toLowerCase().includes(searchLower)) ||
-      (device.owner && device.owner.toLowerCase().includes(searchLower))
+      device.deviceId.toLowerCase().includes(searchLower) ||
+      (device.name && device.name.toLowerCase().includes(searchLower))
     );
   });
 
@@ -153,7 +158,7 @@ export default function AdminDevicesPage() {
           <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             type="search"
-            placeholder="Search devices by ID, name, owner..."
+            placeholder="Search devices by ID, name..."
             className="w-full rounded-lg bg-background pl-8 md:w-[300px] lg:w-[400px]"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -167,7 +172,6 @@ export default function AdminDevicesPage() {
             <TableRow>
               <TableHead>Device ID</TableHead>
               <TableHead>Name</TableHead>
-              <TableHead>Owner</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Last Seen</TableHead>
               <TableHead>Type</TableHead>
@@ -177,14 +181,13 @@ export default function AdminDevicesPage() {
           <TableBody>
             {isLoadingDevices && [...Array(5)].map((_, i) => (
                 <TableRow key={`skeleton-${i}`}>
-                    <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
+                    <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
                 </TableRow>
             ))}
             {!isLoadingDevices && filteredDevices.map((device) => (
-              <TableRow key={device.id}>
-                <TableCell className="font-medium">{device.device_id}</TableCell>
+              <TableRow key={device.deviceId}>
+                <TableCell className="font-medium">{device.deviceId}</TableCell>
                 <TableCell>{device.name || 'N/A'}</TableCell>
-                <TableCell>{device.owner || 'N/A'}</TableCell>
                 <TableCell>
                   <Badge variant={
                     device.status === "online" ? "default" : 
@@ -222,7 +225,7 @@ export default function AdminDevicesPage() {
             ))}
              {!isLoadingDevices && filteredDevices.length === 0 && (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center">
+                <TableCell colSpan={6} className="h-24 text-center">
                   No devices found.
                 </TableCell>
               </TableRow>
@@ -233,3 +236,5 @@ export default function AdminDevicesPage() {
     </div>
   );
 }
+
+    

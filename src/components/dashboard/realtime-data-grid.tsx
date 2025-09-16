@@ -8,30 +8,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useUser } from "@/context/user-context";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 
-// This type represents the raw data structure from Supabase for device status
+// This type represents the raw data structure from our local API
 interface DeviceStatus {
-    id: string; // postgres uuid
-    device_id: string;
+    deviceId: string;
     temperature?: number;
     humidity?: number;
-    water_leak?: boolean;
+    waterLeak?: boolean;
     last_seen: string | null;
     status: 'online' | 'offline';
 }
 
-// This type represents the raw data structure from Supabase for historical data
-interface SupabaseSensorReading {
-    device_id: string;
-    temperature?: number;
-    humidity?: number;
-    water_leak?: boolean;
-    created_at: string | null;
-}
-
-const deriveStatus = (data: DisplaySensorData, currentUser: ReturnType<typeof useUser>['currentUser']): DisplaySensorData["status"] => {
+const deriveStatus = (data: DisplaySensorData): DisplaySensorData["status"] => {
   if (data.waterLeak) return "danger";
   if (data.temperature !== undefined) {
     if (data.temperature > 35) return "warning";
@@ -42,37 +31,21 @@ const deriveStatus = (data: DisplaySensorData, currentUser: ReturnType<typeof us
 };
 
 const MAX_DEVICES_TO_DISPLAY = 10;
-const MAX_HISTORICAL_READINGS = 20;
 
-
-// Function to fetch latest readings from the 'devices' collection
+// Function to fetch latest readings from our local API
 const fetchLatestReadings = async (): Promise<DeviceStatus[]> => {
-    const { data, error } = await supabase
-        .from('devices')
-        .select('*')
-        .order('last_seen', { ascending: false })
-        .limit(MAX_DEVICES_TO_DISPLAY);
-
-    if (error) throw new Error(error.message);
+    const response = await fetch('/api/sensor-data');
+    if (!response.ok) {
+        throw new Error('Failed to fetch sensor data');
+    }
+    const data = await response.json();
     return data as DeviceStatus[];
-};
-
-// Function to fetch historical data from the 'sensor_data' collection
-const fetchHistoricalReadings = async (): Promise<SupabaseSensorReading[]> => {
-    const { data, error } = await supabase
-        .from('sensor_data')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(MAX_HISTORICAL_READINGS * MAX_DEVICES_TO_DISPLAY);
-    
-    if (error) throw new Error(error.message);
-    return data as SupabaseSensorReading[];
 };
 
 
 export function RealtimeDataGrid() {
   const [sensors, setSensors] = useState<DisplaySensorData[]>([]);
-  const { currentUser, addNotification } = useUser();
+  const { currentUser, addNotification, isUserApproved } = useUser();
   const { toast } = useToast();
 
   const { data: latestDeviceReadings, isLoading: isLoadingDevices, refetch: refetchDevices } = useQuery<DeviceStatus[]>({
@@ -82,40 +55,27 @@ export function RealtimeDataGrid() {
     refetchInterval: 30000, // Refetch every 30 seconds
   });
 
-  const { data: historicalReadings, isLoading: isLoadingHistorical, refetch: refetchHistorical } = useQuery<SupabaseSensorReading[]>({
-    queryKey: ['historicalReadings'],
-    queryFn: fetchHistoricalReadings,
-    enabled: !!currentUser?.isLoggedIn,
-    refetchInterval: 60000, // Refetch every minute
-  });
-
 
   useEffect(() => {
     if (!latestDeviceReadings || !currentUser) return;
 
     const transformedSensors = latestDeviceReadings.map(device => {
         const displayData: DisplaySensorData = {
-            id: device.device_id,
-            name: device.device_id,
+            id: device.deviceId,
+            name: device.deviceId,
             temperature: device.temperature,
             humidity: device.humidity,
-            waterLeak: device.water_leak,
+            waterLeak: device.waterLeak,
             lastUpdated: device.last_seen ? format(new Date(device.last_seen), 'p') : 'N/A',
             deviceState: 'ON', // Default state, real state would need another field
             status: 'ok', // Will be derived next
-            historicalData: historicalReadings
-              ?.filter(h => h.device_id === device.device_id && h.created_at)
-              .map(h => ({ 
-                  time: format(new Date(h.created_at!), 'HH:mm'), 
-                  temperature: h.temperature 
-                }))
-              .reverse() // Correct order for charting
-              .slice(-10), // Limit to last 10 for chart clarity
+            historicalData: [], // Historical data is not supported in local mode
         };
-        displayData.status = deriveStatus(displayData, currentUser);
+        displayData.status = deriveStatus(displayData);
+        
+        const hasAutoShutdownFeature = isUserApproved(currentUser.email);
 
-        // Auto-shutdown warning logic
-        if (currentUser.subscription.hasAutoShutdownFeature) {
+        if (hasAutoShutdownFeature) {
           if (displayData.waterLeak) {
               addNotification(`CRITICAL: Water leak detected on ${displayData.id}! Auto-shutdown sequence initiated (simulated).`, 'warning');
           } else if (displayData.temperature && displayData.temperature > 40) {
@@ -123,20 +83,19 @@ export function RealtimeDataGrid() {
           }
         }
         return displayData;
-    }).slice(0, currentUser.subscription.maxDevices);
+    }).slice(0, 10); // Display up to 10 devices max
 
     setSensors(transformedSensors);
 
-  }, [latestDeviceReadings, historicalReadings, currentUser, addNotification]);
+  }, [latestDeviceReadings, currentUser, addNotification, isUserApproved]);
   
   const handleRefresh = () => {
     refetchDevices();
-    refetchHistorical();
   };
 
   const handleSendCommand = async (deviceId: string, command: 'ON' | 'OFF') => {
-    if (!currentUser?.subscription.canControlDevice) {
-      toast({ title: "Feature Unavailable", description: "Device control is not available on your current plan.", variant: "destructive" });
+    if (!currentUser || !isUserApproved(currentUser.email)) {
+      toast({ title: "Feature Unavailable", description: "Device control is not available for your account.", variant: "destructive" });
       return;
     }
     try {
@@ -155,8 +114,8 @@ export function RealtimeDataGrid() {
   };
 
   const downloadCSV = () => {
-    if (!currentUser?.subscription.canExportCsv) {
-        toast({ title: "Feature Unavailable", description: "CSV Export not available on your current plan.", variant: "destructive" });
+    if (!currentUser || !isUserApproved(currentUser.email)) {
+        toast({ title: "Feature Unavailable", description: "CSV Export not available for your account.", variant: "destructive" });
         return;
     }
     if (sensors.length === 0) {
@@ -193,13 +152,13 @@ export function RealtimeDataGrid() {
     toast({ title: "CSV Exported", description: "Current sensor data has been downloaded."});
   };
 
-  const isLoading = isLoadingDevices || isLoadingHistorical;
+  const isLoading = isLoadingDevices;
 
   if (!currentUser || !currentUser.isLoggedIn) {
     return null; // The parent page will handle redirection
   }
   
-  const skeletonCount = currentUser?.subscription?.maxDevices > 0 ? Math.min(currentUser.subscription.maxDevices, MAX_DEVICES_TO_DISPLAY) : 0;
+  const skeletonCount = 4; // Default skeleton count
 
   if (isLoading && sensors.length === 0) {
     return (
@@ -216,7 +175,7 @@ export function RealtimeDataGrid() {
       <div className="flex justify-between items-center mb-6">
         <h3 className="text-lg font-medium">Device Overview</h3>
         <div className="flex items-center gap-2">
-            <Button onClick={downloadCSV} variant="outline" size="sm" disabled={isLoading || sensors.length === 0 || !currentUser.subscription.canExportCsv} title={!currentUser.subscription.canExportCsv ? "CSV Export not available on your plan" : ""}>
+            <Button onClick={downloadCSV} variant="outline" size="sm" disabled={isLoading || sensors.length === 0}>
                 <Download className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
                 Download CSV
             </Button>
@@ -228,8 +187,8 @@ export function RealtimeDataGrid() {
       </div>
       {sensors.length === 0 && !isLoading ? (
          <div className="text-center py-8 text-muted-foreground border-2 border-dashed rounded-lg">
-          <p>No sensor data available for your allowed devices ({currentUser.subscription.maxDevices}).</p>
-          <p className="text-sm">Ensure your Arduino devices are connected and sending data.</p>
+          <p>No sensor data available.</p>
+          <p className="text-sm">Ensure your Arduino devices are connected and sending data with an approved account.</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
@@ -240,10 +199,8 @@ export function RealtimeDataGrid() {
               onSendCommand={handleSendCommand}
             />
           ))}
-          { currentUser.subscription.maxDevices > sensors.length &&
-            Array(Math.max(0, currentUser.subscription.maxDevices - sensors.length))
+          { Array(Math.max(0, MAX_DEVICES_TO_DISPLAY - sensors.length))
             .fill(null)
-            .slice(0, MAX_DEVICES_TO_DISPLAY - sensors.length)
             .map((_,i) => <EmptyDeviceSlot key={`empty-${i}`} />)}
         </div>
       )}
@@ -278,3 +235,5 @@ function EmptyDeviceSlot() {
       </div>
     )
   }
+
+    
