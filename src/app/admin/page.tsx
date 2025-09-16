@@ -4,49 +4,31 @@ import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
-import { Users, HardDrive, ShieldQuestion, BarChart3, Loader2, AlertTriangle } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/lib/supabase";
-
-const fetchUsersCount = async () => {
-  const { count, error } = await supabase.from('users').select('*', { count: 'exact', head: true });
-  if (error) throw new Error(error.message);
-  return count ?? 0;
-};
-
-const fetchActiveDevicesCount = async () => {
-  const { count, error } = await supabase.from('devices').select('*', { count: 'exact', head: true }).eq('status', 'online');
-  if (error) throw new Error(error.message);
-  return count ?? 0;
-};
-
-const fetchErrorReportsCount = async () => {
-    const { count, error } = await supabase.from('error_reports').select('*', { count: 'exact', head: true });
-    if (error) throw new Error(error.message);
-    return count ?? 0;
-};
-
+import { Users, HardDrive, ShieldQuestion, UserCheck, UserPlus } from "lucide-react";
+import { useUser } from "@/context/user-context";
+import { useEffect, useState } from "react";
 
 export default function AdminDashboardPage() {
-    const { data: usersCount, isLoading: isLoadingUsers } = useQuery({ queryKey: ['usersCount'], queryFn: fetchUsersCount });
-    const { data: activeDevicesCount, isLoading: isLoadingDevices } = useQuery({ queryKey: ['activeDevicesCount'], queryFn: fetchActiveDevicesCount });
-    const { data: errorReportsCount, isLoading: isLoadingErrors } = useQuery({ queryKey: ['errorReportsCount'], queryFn: fetchErrorReportsCount });
+  const { getAllUsers } = useUser();
+  const [userCount, setUserCount] = useState(0);
+  const [pendingCount, setPendingCount] = useState(0);
 
-    const isLoading = isLoadingUsers || isLoadingDevices || isLoadingErrors;
+  useEffect(() => {
+    const users = getAllUsers();
+    setUserCount(users.length);
+    setPendingCount(users.filter(u => u.status === 'pending').length);
+  }, [getAllUsers]);
 
   const adminStats = [
-    { title: "Total Users", value: isLoadingUsers ? <Loader2 className="h-5 w-5 animate-spin"/> : usersCount, icon: Users, color: "text-blue-500", href: "/admin/users" },
-    { title: "Active Devices", value: isLoadingDevices ? <Loader2 className="h-5 w-5 animate-spin"/> : activeDevicesCount, icon: HardDrive, color: "text-green-500", href: "/admin/devices" },
-    { title: "Reported Errors", value: isLoadingErrors ? <Loader2 className="h-5 w-5 animate-spin"/> : errorReportsCount, icon: AlertTriangle, color: "text-red-500", href: "#" },
-    { title: "System Health", value: "99.8%", icon: BarChart3, color: "text-teal-500", href: "#" },
+    { title: "Total Users", value: userCount, icon: Users, href: "/admin/users" },
+    { title: "Pending Approvals", value: pendingCount, icon: UserPlus, href: "/admin/users" },
   ];
-
 
   return (
     <div className="space-y-6 md:space-y-8">
       <PageHeader
         title="Admin Dashboard"
-        description="Manage users, devices, and system settings for IoT Guardian."
+        description="Approve new users and manage the system."
       />
       
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
@@ -54,7 +36,7 @@ export default function AdminDashboardPage() {
           <Card key={stat.title} className="shadow-md hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">{stat.title}</CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+              <stat.icon className={`h-5 w-5 text-muted-foreground`} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{stat.value}</div>
@@ -74,15 +56,8 @@ export default function AdminDashboardPage() {
           <Button variant="outline" size="lg" className="w-full justify-start text-base" asChild>
             <Link href="/admin/users"><Users className="mr-3 h-5 w-5"/> Manage Users</Link>
           </Button>
-          <Button variant="outline" size="lg" className="w-full justify-start text-base" asChild>
-            <Link href="/admin/devices"><HardDrive className="mr-3 h-5 w-5"/> Manage Devices</Link>
-          </Button>
-          <Button variant="outline" size="lg" className="w-full justify-start text-base" asChild>
-            <Link href="/admin/manage-issues"><ShieldQuestion className="mr-3 h-5 w-5"/> Manage Issues</Link>
-          </Button>
         </CardContent>
       </Card>
-      {/* Placeholder for more admin specific components, e.g., charts, recent activity */}
     </div>
   );
 }

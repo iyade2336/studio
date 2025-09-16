@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: 'IoT Guardian',
-  description: 'Monitor and manage your IoT devices with AI-powered insights.',
+  description: 'Monitor and manage your IoT devices locally.',
 };
 
 export default function RootLayout({
@@ -41,13 +41,13 @@ export default function RootLayout({
         >
           <QueryProvider>
             <LanguageProvider>
-              <AdminAuthProvider>
-                <UserProvider>
-                  <MainLayout>
-                    {children}
-                  </MainLayout>
-                </UserProvider>
-              </AdminAuthProvider>
+              <UserProvider>
+                <AdminAuthProvider>
+                    <MainLayout>
+                        {children}
+                    </MainLayout>
+                </AdminAuthProvider>
+              </UserProvider>
             </LanguageProvider>
           </QueryProvider>
           <Toaster />

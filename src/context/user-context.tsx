@@ -5,18 +5,13 @@ import type { ReactNode } from 'react';
 import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/lib/supabase';
-import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
+// --- Interfaces and Mocks for Local-Only Auth ---
 
 export interface Subscription {
   planName: string;
   expiryDate: string; 
   maxDevices: number;
-  canControlDevice: boolean;
-  canExportCsv: boolean;
-  hasAutoShutdownFeature: boolean; 
-  canAccessAiTroubleshooter: boolean;
 }
 
 export interface User {
@@ -28,265 +23,198 @@ export interface User {
   company_name: string;
   isLoggedIn: boolean;
   subscription: Subscription;
-  role: 'user' | 'admin';
-  allow_bluetooth_control: boolean;
-  allow_water_leak_config: boolean;
+  status: 'active' | 'pending'; // Added status for admin approval
 }
 
+// In-memory user store for local development
+const mockUserDatabase: Map<string, User> = new Map();
 
+// Initialize with a pending user for demonstration
+mockUserDatabase.set('user@example.com', {
+    id: 'user-1',
+    first_name: 'Pending',
+    last_name: 'User',
+    email: 'user@example.com',
+    whatsapp_number: '+1234567890',
+    company_name: 'Example Corp',
+    isLoggedIn: false,
+    status: 'pending',
+    subscription: { planName: 'None', expiryDate: new Date().toISOString(), maxDevices: 0 },
+});
+mockUserDatabase.set('active@example.com', {
+    id: 'user-2',
+    first_name: 'Active',
+    last_name: 'User',
+    email: 'active@example.com',
+    whatsapp_number: '+1987654321',
+    company_name: 'Active Inc.',
+    isLoggedIn: false,
+    status: 'active',
+    subscription: { planName: 'Premium', expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), maxDevices: 3 },
+});
+
+
+export const PLAN_DETAILS: Record<string, Partial<Subscription>> = {
+  "None": { maxDevices: 0 },
+  "Basic": { maxDevices: 1 },
+  "Premium": { maxDevices: 3 },
+  "Enterprise": { maxDevices: 10 }, 
+};
+
+// --- Notifications remain the same ---
 export interface AppNotification {
-  id: string;
-  message: string;
-  read: boolean;
-  timestamp: Date;
-  type: 'user' | 'admin' | 'arduino' | 'system' | 'warning' | 'error';
+  id: string; message: string; read: boolean; timestamp: Date; type: 'user' | 'admin' | 'system' | 'warning' | 'error';
 }
 
+const LOCAL_STORAGE_KEY_NOTIFICATIONS = 'iot-guardian-userNotifications';
+
+
+// --- Context Definition ---
 interface UserContextType {
   currentUser: User | null;
   isLoading: boolean;
   notifications: AppNotification[];
   unreadNotificationCount: number;
-  loginUser: (userData: User) => void;
+  loginUser: (email: string) => boolean; // Returns success status
   logoutUser: () => void;
+  registerUser: (userData: Omit<User, 'id' | 'isLoggedIn' | 'status' | 'subscription'>) => boolean;
+  getAllUsers: () => User[];
+  approveUser: (email: string) => void;
+  updateUserSubscription: (email: string, planName: string) => void;
   addNotification: (message: string, type: AppNotification['type']) => void;
   markNotificationAsRead: (notificationId: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotifications: () => void;
   getSubscriptionDaysRemaining: () => string;
-  checkDeviceLimit: (currentDeviceCount: number) => boolean;
-  refreshCurrentUser: (updatedUserData: Partial<User>) => void;
+  isUserApproved: (email: string) => boolean;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-export const PLAN_DETAILS: Record<string, Partial<Subscription>> = {
-  "None": { maxDevices: 0, canControlDevice: false, canExportCsv: false, hasAutoShutdownFeature: false, canAccessAiTroubleshooter: false },
-  "Free Trial": { maxDevices: 1, canControlDevice: false, canExportCsv: true, hasAutoShutdownFeature: false, canAccessAiTroubleshooter: true },
-  "Basic": { maxDevices: 1, canControlDevice: false, canExportCsv: true, hasAutoShutdownFeature: false, canAccessAiTroubleshooter: false },
-  "Premium": { maxDevices: 3, canControlDevice: true, canExportCsv: true, hasAutoShutdownFeature: true, canAccessAiTroubleshooter: true },
-  "Enterprise": { maxDevices: 10, canControlDevice: true, canExportCsv: true, hasAutoShutdownFeature: true, canAccessAiTroubleshooter: true }, 
-};
-
-const MOCK_USER_LOGGED_OUT: User = {
-  id: '',
-  first_name: 'Guest',
-  last_name: '',
-  email: '',
-  whatsapp_number: '',
-  company_name: '',
-  isLoggedIn: false,
-  role: 'user',
-  allow_bluetooth_control: false,
-  allow_water_leak_config: false,
-  subscription: {
-    planName: 'None',
-    expiryDate: new Date(0).toISOString(),
-    ...PLAN_DETAILS["None"],
-  } as Subscription,
-};
-
-const LOCAL_STORAGE_KEY_NOTIFICATIONS = 'iot-guardian-userNotifications';
-
+// --- Provider Component ---
 export function UserProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const router = useRouter();
   const { toast } = useToast();
 
-  const fetchAndSetUser = useCallback(async (session: Session | null) => {
-    if (session?.user) {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-        
-      if (data && !error) {
-        if (data.role !== 'user') {
-          setCurrentUser(MOCK_USER_LOGGED_OUT);
-          setIsLoading(false);
-          return;
-        }
-
-        const planName = data.subscription;
-        const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
-
-        setCurrentUser({
-          ...data,
-          isLoggedIn: true,
-          subscription: {
-            planName: planName,
-            expiryDate: data.subscription_expiry_date || new Date().toISOString(),
-            maxDevices: data.allowed_devices ?? planDetails.maxDevices ?? 0,
-            canControlDevice: planDetails.canControlDevice ?? false,
-            canExportCsv: planDetails.canExportCsv ?? false,
-            hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
-            canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
-          },
-        });
-      } else {
-        await supabase.auth.signOut();
-        setCurrentUser(MOCK_USER_LOGGED_OUT);
-      }
-    } else {
-      setCurrentUser(MOCK_USER_LOGGED_OUT);
-    }
-    setIsLoading(false);
-  }, []);
-
+  // Load notifications from local storage on mount
   useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        fetchAndSetUser(session);
-      }
-    );
-    
-    // Initial check
-    const checkInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        fetchAndSetUser(session);
-    };
-    checkInitialSession();
-
     const storedNotifications = localStorage.getItem(LOCAL_STORAGE_KEY_NOTIFICATIONS);
     if (storedNotifications) {
       try {
-        const parsedNotifications = (JSON.parse(storedNotifications) as AppNotification[]).map(n => ({...n, timestamp: new Date(n.timestamp)}));
-        setNotifications(parsedNotifications);
-      } catch(e) { /* ignore */ }
+        setNotifications(JSON.parse(storedNotifications).map((n: AppNotification) => ({...n, timestamp: new Date(n.timestamp)})));
+      } catch (e) { console.error("Failed to parse notifications from localStorage", e); }
     }
+  }, []);
 
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [fetchAndSetUser]);
-
+  // Save notifications to local storage on change
   useEffect(() => {
     localStorage.setItem(LOCAL_STORAGE_KEY_NOTIFICATIONS, JSON.stringify(notifications));
   }, [notifications]);
 
-  const loginUser = useCallback((userData: any) => {
-    const planName = userData.subscription;
-    const planDetails = PLAN_DETAILS[planName] || PLAN_DETAILS["None"];
-     setCurrentUser({
-          ...userData,
-          isLoggedIn: true,
-          subscription: {
-            planName: planName,
-            expiryDate: userData.subscription_expiry_date || new Date().toISOString(),
-            maxDevices: userData.allowed_devices ?? planDetails.maxDevices ?? 0,
-            canControlDevice: planDetails.canControlDevice ?? false,
-            canExportCsv: planDetails.canExportCsv ?? false,
-            hasAutoShutdownFeature: planDetails.hasAutoShutdownFeature ?? false,
-            canAccessAiTroubleshooter: planDetails.canAccessAiTroubleshooter ?? false,
-          },
-        });
-  }, []);
+  const loginUser = useCallback((email: string): boolean => {
+    const user = mockUserDatabase.get(email);
+    if (user) {
+      if (user.status !== 'active') {
+        toast({ title: "Account Pending", description: "Your account is awaiting admin approval.", variant: "destructive" });
+        return false;
+      }
+      setCurrentUser({ ...user, isLoggedIn: true });
+      return true;
+    }
+    return false;
+  }, [toast]);
 
-  const logoutUser = useCallback(async () => {
-    await supabase.auth.signOut();
-    setCurrentUser(MOCK_USER_LOGGED_OUT);
+  const logoutUser = useCallback(() => {
+    setCurrentUser(null);
     router.push('/auth/login');
   }, [router]);
 
-  const addNotification = useCallback((message: string, type: AppNotification['type']) => {
-    const newNotification: AppNotification = {
-      id: `notif_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-      message,
-      type,
-      read: false,
-      timestamp: new Date(),
-    };
-    setNotifications(prev => [newNotification, ...prev].slice(0, 20)); 
-    if (type === 'warning' || type === 'error' || type === 'arduino') {
-      toast({
-        title: type.charAt(0).toUpperCase() + type.slice(1) + " Notification",
-        description: message,
-        variant: type === 'error' || type === 'warning' ? 'destructive' : 'default',
-      });
+  const registerUser = useCallback((userData: Omit<User, 'id' | 'isLoggedIn' | 'status' | 'subscription'>): boolean => {
+    if (mockUserDatabase.has(userData.email)) {
+      return false; // User already exists
     }
+    const newUser: User = {
+      ...userData,
+      id: `user-${mockUserDatabase.size + 1}`,
+      isLoggedIn: false,
+      status: 'pending',
+      subscription: { planName: 'None', expiryDate: new Date().toISOString(), maxDevices: 0 },
+    };
+    mockUserDatabase.set(newUser.email, newUser);
+    return true;
+  }, []);
+
+  const getAllUsers = useCallback(() => {
+    return Array.from(mockUserDatabase.values());
+  }, []);
+
+  const approveUser = useCallback((email: string) => {
+    const user = mockUserDatabase.get(email);
+    if (user) {
+      user.status = 'active';
+      // Give a 1-month free trial of Premium on approval
+      user.subscription = {
+          planName: 'Premium',
+          maxDevices: PLAN_DETAILS['Premium'].maxDevices || 3,
+          expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      }
+      mockUserDatabase.set(email, user);
+    }
+  }, []);
+  
+  const updateUserSubscription = useCallback((email: string, planName: string) => {
+      const user = mockUserDatabase.get(email);
+      const plan = PLAN_DETAILS[planName];
+      if (user && plan) {
+          user.subscription = {
+              planName,
+              maxDevices: plan.maxDevices ?? 0,
+              expiryDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          };
+          mockUserDatabase.set(email, user);
+          // If updating the current user, refresh their state
+          if(currentUser?.email === email) {
+            setCurrentUser(prev => prev ? {...prev, subscription: user.subscription} : null);
+          }
+      }
+  }, [currentUser]);
+
+  const isUserApproved = useCallback((email: string): boolean => {
+    const user = mockUserDatabase.get(email);
+    return user?.status === 'active';
+  }, []);
+  
+  // --- Notification handlers (no changes needed) ---
+  const addNotification = useCallback((message: string, type: AppNotification['type']) => {
+    const newNotification: AppNotification = { id: `notif_${Date.now()}`, message, type, read: false, timestamp: new Date() };
+    setNotifications(prev => [newNotification, ...prev].slice(0, 20)); 
+    toast({ title: `Notification: ${type}`, description: message, variant: type === 'error' ? 'destructive' : 'default' });
   }, [toast]);
 
-  const markNotificationAsRead = useCallback((notificationId: string) => {
-    setNotifications(prev =>
-      prev.map(n => (n.id === notificationId ? { ...n, read: true } : n))
-    );
-  }, []);
-
-  const markAllNotificationsAsRead = useCallback(() => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  }, []);
-
-  const clearNotifications = useCallback(() => {
-    setNotifications([]);
-  }, []);
-
+  const markNotificationAsRead = useCallback((id: string) => setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n)), []);
+  const markAllNotificationsAsRead = useCallback(() => setNotifications(prev => prev.map(n => ({ ...n, read: true }))), []);
+  const clearNotifications = useCallback(() => setNotifications([]), []);
   const unreadNotificationCount = notifications.filter(n => !n.read).length;
 
-  const getSubscriptionDaysRemaining = useCallback((): string => {
-    if (!currentUser || !currentUser.isLoggedIn || !currentUser.subscription.expiryDate) {
-      return "N/A";
-    }
-    const expiry = new Date(currentUser.subscription.expiryDate);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    if (expiry < today) {
-      return "Expired";
-    }
-
-    const diffTime = expiry.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    
-    if (diffDays === 0) {
-        const diffMs = new Date(currentUser.subscription.expiryDate).getTime() - new Date().getTime();
-        if (diffMs <= 0) return "Expired";
-        const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-        const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-        if (diffHours > 0) return `Expires in ${diffHours}h ${diffMinutes}m`;
-        if (diffMinutes > 0) return `Expires in ${diffMinutes}m`;
-        return "Expires very soon";
-    }
-    return `${diffDays} day(s) remaining`;
+  const getSubscriptionDaysRemaining = useCallback(() => {
+    if (!currentUser?.isLoggedIn) return "N/A";
+    const diff = new Date(currentUser.subscription.expiryDate).getTime() - Date.now();
+    if (diff <= 0) return "Expired";
+    const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
+    return `${days} day(s) remaining`;
   }, [currentUser]);
-
-  const checkDeviceLimit = useCallback((currentDeviceCount: number): boolean => {
-    if (!currentUser || !currentUser.isLoggedIn) return false;
-    return currentDeviceCount < currentUser.subscription.maxDevices;
-  }, [currentUser]);
-
-  const refreshCurrentUser = useCallback((updatedUserData: Partial<User>) => {
-    setCurrentUser(prevUser => {
-      if (!prevUser) return null;
-      const newUser = { ...prevUser, ...updatedUserData };
-      if(updatedUserData.subscription) {
-        newUser.subscription = {...prevUser.subscription, ...updatedUserData.subscription};
-      }
-      return newUser;
-    });
-  }, []);
 
 
   return (
-    <UserContext.Provider
-      value={{
-        currentUser,
-        isLoading,
-        notifications,
-        unreadNotificationCount,
-        loginUser,
-        logoutUser,
-        addNotification,
-        markNotificationAsRead,
-        markAllNotificationsAsRead,
-        clearNotifications,
-        getSubscriptionDaysRemaining,
-        checkDeviceLimit,
-        refreshCurrentUser,
-      }}
-    >
+    <UserContext.Provider value={{
+        currentUser, isLoading, notifications, unreadNotificationCount,
+        loginUser, logoutUser, registerUser, getAllUsers, approveUser, updateUserSubscription,
+        addNotification, markNotificationAsRead, markAllNotificationsAsRead, clearNotifications,
+        getSubscriptionDaysRemaining, isUserApproved
+      }}>
       {children}
     </UserContext.Provider>
   );

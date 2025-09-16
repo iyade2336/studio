@@ -2,67 +2,39 @@
 "use client";
 
 import type { ReactNode } from 'react';
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import type { Session, User } from '@supabase/supabase-js';
 
 interface AdminAuthContextType {
   isAdmin: boolean;
   isLoading: boolean;
-  loginAsAdmin: () => void;
+  loginAsAdmin: (callback?: () => void) => void;
   logout: () => void;
 }
 
 const AdminAuthContext = createContext<AdminAuthContextType | undefined>(undefined);
 
+// A simple in-memory flag for admin state.
+// In a real app, this would be a secure session.
+let adminLoggedIn = false;
+
 export function AdminAuthProvider({ children }: { children: ReactNode }) {
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(adminLoggedIn);
+  const [isLoading, setIsLoading] = useState(false); // No async check needed now
   const router = useRouter();
 
-  const checkAdminStatus = useCallback(async (user: User | null) => {
-    if (user) {
-      const { data: userData, error } = await supabase
-        .from('users')
-        .select('role')
-        .eq('id', user.id)
-        .single();
-
-      if (userData && userData.role === 'admin') {
-        setIsAdmin(true);
-      } else {
-        setIsAdmin(false);
-      }
-    } else {
-      setIsAdmin(false);
-    }
-    setIsLoading(false);
-  }, []);
-
-  useEffect(() => {
-    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      checkAdminStatus(session?.user ?? null);
-    });
-
-    // Initial check
-    const checkInitialSession = async () => {
-        const { data: { session } } = await supabase.auth.getSession();
-        await checkAdminStatus(session?.user ?? null);
-    };
-    checkInitialSession();
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, [checkAdminStatus]);
-
-  const loginAsAdmin = useCallback(() => {
+  const loginAsAdmin = useCallback((callback?: () => void) => {
+    adminLoggedIn = true;
     setIsAdmin(true);
-  }, []);
+    if (callback) {
+        callback();
+    } else {
+        router.push('/admin');
+    }
+  }, [router]);
 
-  const logout = useCallback(async () => {
-    await supabase.auth.signOut();
+  const logout = useCallback(() => {
+    adminLoggedIn = false;
     setIsAdmin(false);
     router.push('/auth/login');
   }, [router]);

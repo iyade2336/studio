@@ -1,7 +1,13 @@
 
 import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
 import { z } from 'zod';
+
+// Mock in-memory store for issues
+const issuesStore = new Map<string, any>();
+// Pre-populate with some data
+issuesStore.set('1', { id: '1', title: 'Sensor Offline', description: 'The sensor is not sending any data.', image_url: 'https://placehold.co/600x400.png', potential_causes: ['Power loss', 'No WiFi'], solutions: ['Check power cable', 'Reboot router'] });
+issuesStore.set('2', { id: '2', title: 'Incorrect Temperature Reading', description: 'Temperature readings are unexpectedly high or low.', image_url: 'https://placehold.co/600x400.png', potential_causes: ['Sensor placement', 'Sensor malfunction'], solutions: ['Move sensor away from heat sources', 'Replace sensor'] });
+
 
 // Schema for creating a new issue
 const CreateIssueSchema = z.object({
@@ -15,8 +21,7 @@ const CreateIssueSchema = z.object({
 // GET all issues
 export async function GET(request: Request) {
   try {
-    const { data, error } = await supabase.from('issues').select('*');
-    if (error) throw error;
+    const data = Array.from(issuesStore.values());
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
     console.error("Error fetching issues:", error);
@@ -35,12 +40,12 @@ export async function POST(request: Request) {
     if (!validation.success) {
       return NextResponse.json({ error: "Invalid data", details: validation.error.format() }, { status: 400 });
     }
-
-    const { data, error } = await supabase.from('issues').insert(validation.data).select().single();
     
-    if (error) throw error;
+    const newId = (issuesStore.size + 1).toString();
+    const newIssue = { id: newId, ...validation.data };
+    issuesStore.set(newId, newIssue);
     
-    return NextResponse.json(data, { status: 201 });
+    return NextResponse.json(newIssue, { status: 201 });
 
   } catch (error) {
     console.error("Error creating issue:", error);

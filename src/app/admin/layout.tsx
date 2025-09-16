@@ -6,7 +6,6 @@ import { useEffect } from 'react';
 import { useAdminAuth } from '@/context/admin-auth-context';
 import { useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const { isAdmin, isLoading } = useAdminAuth();
@@ -35,5 +34,6 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  // The admin-dashboard class applies the specific dark theme from globals.css
   return <div className="admin-dashboard">{children}</div>;
 }

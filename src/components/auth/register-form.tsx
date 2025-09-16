@@ -18,17 +18,16 @@ import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/lib/supabase";
+import { useUser } from "@/context/user-context";
 
 const formSchema = z.object({
   firstName: z.string().min(2, {message: "First name must be at least 2 characters."}),
   lastName: z.string().min(2, {message: "Last name must be at least 2 characters."}),
   email: z.string().email({ message: "Invalid email address." }),
-  whatsappNumber: z.string().min(10, { message: "WhatsApp number must be at least 10 digits." }).regex(/^\+?[1-9]\d{1,14}$/, { message: "Invalid WhatsApp number format."}),
+  whatsappNumber: z.string().min(10, { message: "WhatsApp number must be at least 10 digits." }),
   companyName: z.string().min(2, {message: "Company name must be at least 2 characters."}),
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
-  confirmPassword: z.string().min(6, {message: "Password must be at least 6 characters."})
-}).refine(data => data.password === data.confirmPassword, {
+}).refine(data => data.password, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
 });
@@ -36,6 +35,7 @@ const formSchema = z.object({
 export function RegisterForm() {
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
+  const { registerUser } = useUser();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -46,47 +46,34 @@ export function RegisterForm() {
       whatsappNumber: "",
       companyName: "",
       password: "",
-      confirmPassword: "",
     },
   });
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
-    
-    // The database trigger 'handle_new_user' will automatically create a
-    // corresponding entry in the 'public.users' table.
-    const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    const success = registerUser({
+        first_name: values.firstName,
+        last_name: values.lastName,
         email: values.email,
-        password: values.password,
-        options: {
-            data: {
-                first_name: values.firstName,
-                last_name: values.lastName,
-                company_name: values.companyName,
-                whatsapp_number: values.whatsappNumber,
-                avatar_url: `https://placehold.co/40x40.png?text=${values.firstName?.[0] || 'U'}`,
-            }
-        }
+        whatsapp_number: values.whatsappNumber,
+        company_name: values.companyName,
     });
-
-    if (signUpError) {
+    
+    if (success) {
         toast({
-            title: "Registration Failed",
-            description: signUpError.message,
-            variant: "destructive",
-        });
-        setIsLoading(false);
-        return;
-    }
-
-    if (signUpData.user) {
-        // The `handle_new_user` function in Supabase will create the user profile.
-        toast({
-            title: "Registration Successful!",
-            description: "Please check your email to confirm your address. You can log in after verification.",
+            title: "Registration Submitted!",
+            description: "Your account has been created and is awaiting admin approval.",
             duration: 9000,
         });
         form.reset();
+    } else {
+        toast({
+            title: "Registration Failed",
+            description: "An account with this email already exists.",
+            variant: "destructive",
+        });
     }
     
     setIsLoading(false);
@@ -96,7 +83,7 @@ export function RegisterForm() {
     <Card className="w-full max-w-md shadow-xl">
       <CardHeader>
         <CardTitle className="text-2xl">Create an Account</CardTitle>
-        <CardDescription>Join IoT Guardian to monitor your devices. You can log in immediately after verifying your email.</CardDescription>
+        <CardDescription>Join IoT Guardian to monitor your devices. Your account will be active after admin approval.</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -172,19 +159,6 @@ export function RegisterForm() {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Password</FormLabel>
-                  <FormControl>
-                    <Input type="password" placeholder="••••••••" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-             <FormField
-              control={form.control}
-              name="confirmPassword"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Confirm Password</FormLabel>
                   <FormControl>
                     <Input type="password" placeholder="••••••••" {...field} />
                   </FormControl>

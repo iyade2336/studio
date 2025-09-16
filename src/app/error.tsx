@@ -5,8 +5,6 @@ import { useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AlertTriangle } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { useUser } from '@/context/user-context'
 
 export default function GlobalError({
   error,
@@ -15,28 +13,11 @@ export default function GlobalError({
   error: Error & { digest?: string }
   reset: () => void
 }) {
-  const { currentUser } = useUser();
 
   useEffect(() => {
-    // Log the error to our reporting service (Supabase)
-    const logError = async () => {
-      try {
-        await supabase.from('error_reports').insert({
-          message: error.message,
-          stack_trace: error.stack,
-          digest: error.digest,
-          user_id: currentUser?.id || 'guest',
-          path: typeof window !== 'undefined' ? window.location.pathname : 'unknown',
-          user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : 'unknown',
-        });
-        console.error("Error logged to Supabase:", error);
-      } catch (loggingError) {
-        console.error("Failed to log error to Supabase:", loggingError);
-        console.error("Original error was:", error);
-      }
-    };
-    logError();
-  }, [error, currentUser]);
+    // Log the error to the console
+    console.error("Application Error:", error);
+  }, [error]);
 
   return (
     <div className="flex items-center justify-center min-h-[calc(100vh-theme(spacing.32))] bg-background p-4">
@@ -52,7 +33,7 @@ export default function GlobalError({
             </CardHeader>
             <CardContent className="text-center">
                 <p className="text-muted-foreground mb-6">
-                    An unexpected error has occurred. Our team has been automatically notified. Please try again, and if the problem persists, feel free to contact support.
+                    An unexpected error has occurred. Please try again, and if the problem persists, feel free to contact support.
                 </p>
                 <Button onClick={() => reset()} size="lg">
                     Try Again

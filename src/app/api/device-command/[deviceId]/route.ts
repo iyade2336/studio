@@ -1,7 +1,9 @@
 
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { supabase } from '@/lib/supabase';
+
+// In-memory store for commands since there is no database
+const commandStore = new Map<string, any>();
 
 const CommandSchema = z.object({
   command: z.enum(['ON', 'OFF']),
@@ -28,20 +30,18 @@ export async function POST(
     const { command, parameters } = validationResult.data;
     
     const commandToStore = {
+      deviceId,
       command,
       parameters,
       timestamp: new Date().toISOString(),
       processed: false,
     };
 
-    const { error } = await supabase
-        .from('device_commands')
-        .upsert({ device_id: deviceId, ...commandToStore }, { onConflict: 'device_id' });
-
-    if (error) throw error;
+    // Store command in our in-memory map
+    commandStore.set(deviceId, commandToStore);
 
     console.log(`Command for device ${deviceId} set to:`, commandToStore);
-    return NextResponse.json({ status: 'success', message: `Command ${command} queued for device ${deviceId}.`, deviceId, commandDetails: commandToStore }, { status: 200 });
+    return NextResponse.json({ status: 'success', message: `Command ${command} queued for device ${deviceId}.` }, { status: 200 });
 
   } catch (error) {
     console.error(`Error processing command for device ${deviceId}:`, error);
@@ -59,19 +59,11 @@ export async function GET(
     return NextResponse.json({ error: 'Device ID is required' }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from('device_commands')
-    .select('*')
-    .eq('device_id', deviceId)
-    .single();
+  const command = commandStore.get(deviceId);
 
-  if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
-    console.error('Error fetching command:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  if (data) {
-    return NextResponse.json(data, { status: 200 });
+  if (command) {
+    // In a real system, you might set processed=true here or have the device send an ACK
+    return NextResponse.json(command, { status: 200 });
   } else {
     return NextResponse.json({ message: `No pending commands for device ${deviceId}.` }, { status: 200 }); 
   }

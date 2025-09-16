@@ -12,7 +12,6 @@ import {
   UserPlus,
   ShieldQuestion,
   Settings,
-  Bot,
   LogOut,
   Home,
   Info,
@@ -32,8 +31,6 @@ import { Separator } from "@/components/ui/separator";
 import React from "react";
 import { useAdminAuth } from "@/context/admin-auth-context";
 import { useUser } from "@/context/user-context";
-import { Button } from "../ui/button";
-
 
 interface NavItem {
   href: string;
@@ -56,7 +53,7 @@ const publicNavItems: NavItem[] = [
 const commonUserNavItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, userOnly: true },
   { href: "/troubleshoot", label: "Troubleshoot", icon: Wrench, userOnly: true },
-  { href: "/issues", label: "Common Issues", icon: Wrench, userOnly: true },
+  { href: "/issues", label: "Common Issues", icon: ShieldQuestion, userOnly: true },
   { href: "/subscriptions", label: "My Subscription", icon: CreditCard, userOnly: true, sectionBreak: true },
 ];
 
@@ -65,19 +62,12 @@ const generalInfoNavItems: NavItem[] = [
   { href: "/contact", label: "Contact Us", icon: Mail, isPublic: true, sectionBreak: true },
 ];
 
-
-const adminNavItemsSection: NavItem = {
-  href: "/admin",
-  label: "Admin Panel",
-  icon: Settings,
-  adminOnly: true,
-  subItems: [
+const adminNavItems: NavItem[] = [
     { href: "/admin", label: "Overview", icon: LayoutDashboard, matchExact: true, adminOnly: true },
-    { href: "/admin/devices", label: "Devices", icon: HardDrive, adminOnly: true },
     { href: "/admin/users", label: "Users", icon: Users, adminOnly: true },
-    { href: "/admin/manage-issues", label: "Manage Issues", icon: ShieldQuestion, adminOnly: true },
-  ],
-};
+    // Simplified admin panel, removing device and issue management for now
+];
+
 
 const authNavItems: NavItem[] = [
   { href: "/auth/login", label: "Login", icon: LogIn, guestOnly: true },
@@ -89,56 +79,40 @@ export function SidebarNav() {
   const pathname = usePathname();
   const { isAdmin, logout: adminLogout } = useAdminAuth();
   const { currentUser, logoutUser: regularUserLogout } = useUser();
-
-  const renderNavItem = (item: NavItem, isSubItem = false) => {
+  const isUserLoggedIn = !!currentUser?.isLoggedIn;
+  
+  const renderNavItem = (item: NavItem) => {
     if (item.adminOnly && !isAdmin) return null;
-    if (item.userOnly && (!currentUser || !currentUser.isLoggedIn || isAdmin)) return null;
-    if (item.guestOnly && (isAdmin || (currentUser && currentUser.isLoggedIn))) return null;
-
+    if (item.userOnly && (!isUserLoggedIn || isAdmin)) return null;
+    if (item.guestOnly && (isAdmin || isUserLoggedIn)) return null;
 
     const isActive = item.matchExact ? pathname === item.href : pathname.startsWith(item.href);
-    const ButtonComponent = isSubItem ? SidebarMenuSubButton : SidebarMenuButton;
-
-    const navItemContent = (
-      <>
-        <item.icon className="mr-2 h-5 w-5" />
-        <span className="truncate">{item.label}</span>
-      </>
-    );
-
-    const effectiveHref = (item.adminOnly && !isAdmin && !item.href.startsWith('/auth/login')) ? "/auth/login" : item.href;
 
     const menuItem = (
       <SidebarMenuItem key={item.label + (item.action ? "-action" : item.href)}>
         {item.action ? (
-          <ButtonComponent
+          <SidebarMenuButton
             onClick={item.action}
-            className={cn("w-full justify-start hover:bg-sidebar-accent hover:text-sidebar-accent-foreground")}
+            className="w-full justify-start"
             tooltip={item.label}
           >
-            {navItemContent}
-          </ButtonComponent>
+            <item.icon className="mr-2 h-5 w-5" /> {item.label}
+          </SidebarMenuButton>
         ) : (
-          <Link href={effectiveHref} passHref legacyBehavior>
-            <ButtonComponent
-              className={cn(isActive ? "bg-sidebar-primary text-sidebar-primary-foreground" : "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground", "w-full justify-start")}
+          <Link href={item.href} passHref legacyBehavior>
+            <SidebarMenuButton
+              className="w-full justify-start"
               isActive={isActive}
-              asChild={!isSubItem}
+              asChild
               tooltip={item.label}
             >
-            {!isSubItem ? <a>{navItemContent}</a> : navItemContent}
-            </ButtonComponent>
+              <a><item.icon className="mr-2 h-5 w-5" /> {item.label}</a>
+            </SidebarMenuButton>
           </Link>
-        )}
-        {item.subItems && (item.adminOnly ? isAdmin : true) && isActive && (
-          <SidebarMenuSub>
-            {item.subItems.map(subItem => renderNavItem(subItem, true))}
-          </SidebarMenuSub>
         )}
       </SidebarMenuItem>
     );
-
-    if (item.sectionBreak) {
+     if (item.sectionBreak) {
         return (
             <React.Fragment key={item.label + "-fragment"}>
                 {menuItem}
@@ -151,29 +125,25 @@ export function SidebarNav() {
 
   return (
     <div className="flex flex-col h-full">
-      <div className="p-4 flex items-center justify-center"> {/* Centered Logo */}
+      <div className="p-4 flex items-center justify-center">
          <Link href="/" className="flex items-center gap-2">
           <Logo className="h-10 w-auto"/>
         </Link>
       </div>
       <Separator className="bg-sidebar-border my-2" />
       <SidebarMenu className="flex-1 px-2 py-2 space-y-1">
-        {publicNavItems.map(item => renderNavItem(item))}
-        {commonUserNavItems.map(item => renderNavItem(item))}
-        {generalInfoNavItems.map(item => renderNavItem(item))}
-        {isAdmin && renderNavItem(adminNavItemsSection)}
+        {publicNavItems.map(renderNavItem)}
+        {commonUserNavItems.map(renderNavItem)}
+        {generalInfoNavItems.map(renderNavItem)}
+        {isAdmin && adminNavItems.map(renderNavItem)}
       </SidebarMenu>
       
-      <div className="mt-auto"> {/* Pushes Auth links to bottom */}
+      <div className="mt-auto">
         <Separator className="bg-sidebar-border my-2" />
         <SidebarMenu className="px-2 py-2 space-y-1">
-            {authNavItems.map(item => renderNavItem(item))}
-            {isAdmin && (
-            renderNavItem({ href: "#", label: "Admin Logout", icon: LogOut, action: adminLogout })
-            )}
-            {currentUser && currentUser.isLoggedIn && !isAdmin && (
-            renderNavItem({ href: "#", label: "User Logout", icon: LogOut, action: regularUserLogout })
-            )}
+            {authNavItems.map(renderNavItem)}
+            {isAdmin && renderNavItem({ href: "#", label: "Admin Logout", icon: LogOut, action: adminLogout })}
+            {isUserLoggedIn && !isAdmin && renderNavItem({ href: "#", label: "Logout", icon: LogOut, action: regularUserLogout })}
         </SidebarMenu>
       </div>
     </div>

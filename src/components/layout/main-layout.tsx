@@ -18,7 +18,6 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
@@ -42,7 +41,7 @@ export function MainLayout({ children }: MainLayoutProps) {
   const isMobile = useIsMobile();
   const pathname = usePathname();
   const { setTheme } = useTheme();
-  const { language, setLanguage, direction } = useLanguage();
+  const { language, setLanguage } = useLanguage();
   const { 
     currentUser, 
     logoutUser: regularUserLogout,
@@ -129,7 +128,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                 </DropdownMenuContent>
             </DropdownMenu>
             
-            {!isLandingPage && (
+            {!isLandingPage && (currentUser?.isLoggedIn || isAdmin) && (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" aria-label="Notifications" className="relative">
@@ -157,13 +156,8 @@ export function MainLayout({ children }: MainLayoutProps) {
                         <DropdownMenuItem key={notif.id} onSelect={(e) => { e.preventDefault(); markNotificationAsRead(notif.id);}} className={cn("flex items-start gap-2 cursor-pointer", !notif.read && "font-semibold")}>
                            {notif.read ? <Circle className="h-3 w-3 mt-1 text-muted-foreground/50"/> : <CheckCircle className="h-3 w-3 mt-1 text-accent"/>}
                           <div className="flex-1">
-                            <p className={cn("text-sm leading-tight", 
-                                             notif.type === 'warning' ? 'text-yellow-600' : 
-                                             notif.type === 'error' ? 'text-destructive' : ''
-                                            )}>{notif.message}</p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatDistanceToNow(new Date(notif.timestamp), { addSuffix: true })} ({notif.type})
-                            </p>
+                            <p className={cn("text-sm leading-tight", notif.type === 'warning' ? 'text-yellow-600' : notif.type === 'error' ? 'text-destructive' : '')}>{notif.message}</p>
+                            <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(notif.timestamp), { addSuffix: true })}</p>
                           </div>
                         </DropdownMenuItem>
                       ))
@@ -192,7 +186,7 @@ export function MainLayout({ children }: MainLayoutProps) {
                   <>
                     <DropdownMenuLabel>
                       <p className="font-medium flex items-center"><ShieldCheck className="mr-2 h-4 w-4 text-primary" /> Administrator</p>
-                      <p className="text-xs text-muted-foreground">admin@iotguardian.com</p>
+                      <p className="text-xs text-muted-foreground">admin@admin.com</p>
                     </DropdownMenuLabel>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem asChild>
